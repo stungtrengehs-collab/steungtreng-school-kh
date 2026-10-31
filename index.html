@@ -20,7 +20,7 @@
     <!-- Firebase SDK Modules -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // =========================================================================
         // 🔑 កូដ Firebase Credentials ផ្លូវការរបស់វិទ្យាល័យឥស្លាមស្ទឹងត្រែង
@@ -46,6 +46,23 @@
             setDoc(logRef, logData).then(() => {
                 console.log("Synced to cloud successfully!");
             }).catch((err) => console.error("Sync error:", err));
+        };
+
+        // 🗑️ អនុគមន៍លុប Logs ទាំងអស់ចេញពី Firebase Cloud Database
+        window.clearAttendanceLogsFromCloud = async function() {
+            try {
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'school_app';
+                const attendanceCol = collection(db, 'artifacts', appId, 'public', 'data', 'attendance');
+                const snapshot = await getDocs(attendanceCol);
+                const deletePromises = [];
+                snapshot.forEach((document) => {
+                    deletePromises.push(deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'attendance', document.id)));
+                });
+                await Promise.all(deletePromises);
+                console.log("Cleared all logs from cloud database!");
+            } catch (err) {
+                console.error("Cloud clear error:", err);
+            }
         };
 
         // លឺទិន្នន័យ Update ភ្លាមៗ (Real-time listener សម្រាប់ Admin & Teachers)
@@ -671,6 +688,9 @@
                         <button onclick="printReport()" class="flex-1 py-2 px-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center justify-center">
                             <i class="fas fa-print mr-1"></i>Print
                         </button>
+                        <button onclick="clearFilteredReportLogs()" class="admin-only flex-1 py-2 px-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold flex items-center justify-center whitespace-nowrap shadow" title="លុបទិន្នន័យរបាយការណ៍ដែលបាន Filter ទាំងអស់">
+                            <i class="fas fa-trash-alt mr-1"></i>លុបទាំងអស់
+                        </button>
                     </div>
                 </div>
             </div>
@@ -1133,6 +1153,11 @@ CREATE TABLE tuition_payments (
         let currentUser = null;
         let html5QrcodeScanner = null;
         let activeCardData = { id: '', name: '', sub: '' };
+
+        // 🛡️ ប្រព័ន្ធទប់ស្កាត់ការស្កែនស្ទួន (Scan Debounce / Anti-Duplicate Locks)
+        let isProcessingScan = false;
+        let lastScannedId = '';
+        let lastScannedTime = 0;
 
         const officialSampleStudents = [
             { id: "STU-001", name: "អាំម៉ាដ សុខា", gender: "ប្រុស", grade: "7A", phone: "012345678" },
@@ -1791,8 +1816,13 @@ CREATE TABLE tuition_payments (
                 return showToast('សូមបំពេញ Username និង Password ឱ្យបានគ្រប់ជ្រុងជ្រោយ!', false);
             }
 
-            saveData('sys_credentials', { adminUser, adminPass, teacherUser, teacherPass });
-            showToast('បានប្តូរពាក្យសម្ងាត់ថ្មីជោគជ័យ!');
+            const newCreds = { adminUser, adminPass, teacherUser, teacherPass };
+            saveData('sys_credentials', newCreds);
+
+            // កត់ត្រា Flag ការពារកុំឱ្យ Overwrite ពាក្យសម្ងាត់ពេលបើកឡើងវិញ
+            saveData('sys_custom_creds_flag', 'true');
+
+            showToast('បានប្តូរពាក្យសម្ងាត់ថ្មី និងរក្សាទុកជាប់ជោគជ័យ!');
         }
 
         async function sendTelegramMessage(messageText, grade = null) {
@@ -1833,7 +1863,25 @@ CREATE TABLE tuition_payments (
             html5QrcodeScanner.start(
                 { facingMode: "environment" },
                 { fps: 10, qrbox: { width: 250, height: 250 } },
-                (decodedText) => processAttendance(decodedText.trim()),
+                (decodedText) => {
+                    const cleanId = decodedText.trim();
+                    const now = Date.now();
+
+                    // ទទួលស្គាល់តែ ១ ដងប៉ុណ្ណោះក្នុងរយៈពេល ៣ វិនាទី (3s Anti-Duplicate Debounce Buffer)
+                    if (isProcessingScan) return;
+                    if (cleanId === lastScannedId && (now - lastScannedTime) < 3000) return;
+
+                    isProcessingScan = true;
+                    lastScannedId = cleanId;
+                    lastScannedTime = now;
+
+                    processAttendance(cleanId);
+
+                    // បើកឱ្យស្កែនឡើងវិញបន្ទាប់ពី ៣ វិនាទី
+                    setTimeout(() => {
+                        isProcessingScan = false;
+                    }, 3000);
+                },
                 (errorMessage) => {}
             ).catch(err => {
                 showToast('មិនអាចបើកកាមេរ៉ាបានទេ!', false);
@@ -1874,13 +1922,15 @@ CREATE TABLE tuition_payments (
             const type = document.getElementById('scanner-type').value;
             const students = getData('sys_students', []);
             const teachers = getData('sys_teachers', []);
-            const targetId = scannedId.trim();
+
+            // 🛠️ សម្រួល ID ឱ្យស្អាត (លុប Space និងប្តូរជា uppercase ដើម្បីការពារការស្កែនមិនស្គាល់)
+            const targetId = scannedId.trim().toUpperCase();
 
             let person = null;
             if (type === 'student') {
-                person = students.find(s => s.id === targetId);
+                person = students.find(s => s.id.trim().toUpperCase() === targetId);
             } else {
-                person = teachers.find(t => t.id === targetId);
+                person = teachers.find(t => t.id.trim().toUpperCase() === targetId);
             }
 
             if (!person) {
@@ -1888,6 +1938,7 @@ CREATE TABLE tuition_payments (
                     <div class="text-rose-500 py-6 text-center">
                         <i class="fas fa-exclamation-circle text-4xl mb-2"></i>
                         <div class="font-bold">រកមិនឃើញ ID: ${targetId}</div>
+                        <div class="text-xs text-slate-500 mt-1">សូមពិនិត្យមើលថាតើបានជ្រើសរើសប្រភេទស្កែនត្រឹមត្រូវ (សិស្ស ឬ គ្រូ) ឬនៅ?</div>
                     </div>
                 `;
                 return showToast('រកមិនឃើញទិន្នន័យ ID នេះទេ!', false);
@@ -2016,10 +2067,17 @@ CREATE TABLE tuition_payments (
         }
 
         function clearAttendanceLogsOfficial() {
-            if (confirm('តើអ្នកពិតជាចង់លុបសម្អាតកំណត់ត្រាវត្តមានចាស់ៗទាំងអស់មែនទេ?')) {
+            if (confirm('តើអ្នកពិតជាចង់លុបសម្អាតកំណត់ត្រាវត្តមានចាស់ៗទាំងអស់មែនទេ? (ទិន្នន័យលើ Cloud នឹងត្រូវលុបចោលទាំងស្រុង)')) {
+                // ១. លុបចេញពី Local Storage
                 saveData('sys_attendance', []);
+                
+                // ២. លុបចេញពី Firebase Firestore Cloud Database ជារៀងរហូត
+                if (typeof window.clearAttendanceLogsFromCloud === 'function') {
+                    window.clearAttendanceLogsFromCloud();
+                }
+
                 renderDashboard();
-                showToast('សម្អាត Logs វត្តមានទាំងអស់ជោគជ័យ!');
+                showToast('សម្អាត Logs វត្តមានទាំងអស់ចេញពី Cloud ជោគជ័យ!');
             }
         }
 
@@ -2578,6 +2636,36 @@ CREATE TABLE tuition_payments (
             showToast('បានលុបកំណត់ត្រាវត្តមានជោគជ័យ!');
         }
 
+        function clearFilteredReportLogs() {
+            const type = document.getElementById('report-type').value;
+            const gradeFilter = document.getElementById('report-grade').value;
+            const startDate = document.getElementById('report-start-date').value;
+            const endDate = document.getElementById('report-end-date').value;
+
+            let logs = getData('sys_attendance', []);
+            const logsToDelete = logs.filter(l => {
+                if (l.type !== type) return false;
+                if (gradeFilter !== 'ALL' && l.grade !== gradeFilter) return false;
+                if (startDate && l.date < startDate) return false;
+                if (endDate && l.date > endDate) return false;
+                return true;
+            });
+
+            if (logsToDelete.length === 0) {
+                return showToast('គ្មានទិន្នន័យរបាយការណ៍សម្រាប់លុបទេ!', false);
+            }
+
+            if (!confirm(`⚠️ តើអ្នកពិតជាចង់លុបកំណត់ត្រាវត្តមានទាំងអស់ដែលបាន Filter ក្នុងរបាយការណ៍នេះ (ចំនួន ${logsToDelete.length} កំណត់ត្រា) មែនទេ?`)) return;
+
+            const deleteIds = new Set(logsToDelete.map(l => l.id));
+            const remainingLogs = logs.filter(l => !deleteIds.has(l.id));
+
+            saveData('sys_attendance', remainingLogs);
+            generateReport();
+            renderDashboard();
+            showToast(`បានលុបកំណត់ត្រាវត្តមានក្នុងរបាយការណ៍ចំនួន ${logsToDelete.length} ជោគជ័យ!`);
+        }
+
         function exportToExcel() {
             const type = document.getElementById('report-type').value;
             const logs = getData('sys_attendance', []).filter(l => l.type === type);
@@ -2609,11 +2697,13 @@ CREATE TABLE tuition_payments (
             if (!confirm('⚠️ តើអ្នកពិតជាចង់លុបទិន្នន័យទាំងអស់ក្នុងប្រព័ន្ធចោលស្អាតមែនទេ?')) return;
             localStorage.clear();
             saveData('sys_initialized', 'cleared');
+            saveData('sys_cleared_flag', 'true');
             showToast('បានលុបទិន្នន័យទាំងអស់ជោគជ័យ!');
             setTimeout(() => location.reload(), 500);
         }
 
         function loadSampleDataOfficial() {
+            localStorage.removeItem('sys_cleared_flag');
             saveData('sys_students', officialSampleStudents);
             saveData('sys_teachers', officialSampleTeachers);
             saveData('sys_subjects', officialSampleSubjects);
@@ -2628,12 +2718,14 @@ CREATE TABLE tuition_payments (
             const loginForm = document.getElementById('login-form');
             if (loginForm) loginForm.addEventListener('submit', handleLogin);
 
+            // ពិនិត្យមើលថាតើមានពាក្យសម្ងាត់ដែលបានកំណត់រួចហើយឬនៅ
             if (!localStorage.getItem('sys_credentials')) {
                 saveData('sys_credentials', { adminUser: 'admin', adminPass: 'admin123', teacherUser: 'teacher', teacherPass: 'teacher123' });
             }
 
+            const isCleared = localStorage.getItem('sys_cleared_flag');
             const initFlag = localStorage.getItem('sys_initialized');
-            if (!initFlag) {
+            if (!initFlag && !isCleared) {
                 saveData('sys_students', officialSampleStudents);
                 saveData('sys_teachers', officialSampleTeachers);
                 saveData('sys_subjects', officialSampleSubjects);
@@ -2642,6 +2734,7 @@ CREATE TABLE tuition_payments (
                 saveData('sys_initialized', 'active');
             }
 
+            // ទាញយកពាក្យសម្ងាត់ចុងក្រោយដែលបាន Save មកបង្ហាញក្នុងប្រព័ន្ធ
             const creds = getData('sys_credentials', { adminUser: 'admin', adminPass: 'admin123', teacherUser: 'teacher', teacherPass: 'teacher123' });
             if (document.getElementById('sys-admin-username')) {
                 document.getElementById('sys-admin-username').value = creds.adminUser;
