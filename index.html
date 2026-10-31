@@ -36,9 +36,30 @@
         const db = getFirestore(app);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'school_app';
 
+        // Cloud Sync Functions for ALL Data Collections
         window.syncAttendanceToCloud = function(logData) {
             const logRef = doc(db, 'artifacts', appId, 'public', 'data', 'attendance', String(logData.id));
-            setDoc(logRef, logData).catch((err) => console.error("Sync error:", err));
+            setDoc(logRef, logData).catch((err) => console.error("Attendance Sync error:", err));
+        };
+
+        window.syncStudentsToCloud = function(studentsData) {
+            const ref = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'students');
+            setDoc(ref, { list: studentsData }).catch((err) => console.error("Students Sync error:", err));
+        };
+
+        window.syncTeachersToCloud = function(teachersData) {
+            const ref = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'teachers');
+            setDoc(ref, { list: teachersData }).catch((err) => console.error("Teachers Sync error:", err));
+        };
+
+        window.syncPaymentsToCloud = function(paymentsData) {
+            const ref = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'payments');
+            setDoc(ref, { list: paymentsData }).catch((err) => console.error("Payments Sync error:", err));
+        };
+
+        window.syncTimetablesToCloud = function(timetableMatrices) {
+            const ref = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'timetables');
+            setDoc(ref, { matrices: timetableMatrices }).catch((err) => console.error("Timetables Sync error:", err));
         };
 
         window.syncCredentialsToCloud = function(creds) {
@@ -60,6 +81,7 @@
             }
         };
 
+        // Real-time Listeners for ALL Devices
         const attendanceCol = collection(db, 'artifacts', appId, 'public', 'data', 'attendance');
         onSnapshot(attendanceCol, (snapshot) => {
             const logs = [];
@@ -67,7 +89,40 @@
             localStorage.setItem('sys_attendance', JSON.stringify(logs));
             if (typeof renderDashboard === 'function') renderDashboard();
             if (typeof generateReport === 'function') generateReport();
-        }, (error) => console.error("Realtime Listen Error:", error));
+        }, (error) => console.error("Realtime Attendance Error:", error));
+
+        const studentsRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'students');
+        onSnapshot(studentsRef, (docSnap) => {
+            if (docSnap.exists() && docSnap.data().list) {
+                localStorage.setItem('sys_students', JSON.stringify(docSnap.data().list));
+                if (typeof renderStudents === 'function') renderStudents();
+                if (typeof populateGradeDropdowns === 'function') populateGradeDropdowns();
+            }
+        }, (error) => console.error("Realtime Students Error:", error));
+
+        const teachersRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'teachers');
+        onSnapshot(teachersRef, (docSnap) => {
+            if (docSnap.exists() && docSnap.data().list) {
+                localStorage.setItem('sys_teachers', JSON.stringify(docSnap.data().list));
+                if (typeof renderTeachers === 'function') renderTeachers();
+            }
+        }, (error) => console.error("Realtime Teachers Error:", error));
+
+        const paymentsRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'payments');
+        onSnapshot(paymentsRef, (docSnap) => {
+            if (docSnap.exists() && docSnap.data().list) {
+                localStorage.setItem('sys_payments', JSON.stringify(docSnap.data().list));
+                if (typeof renderPayments === 'function') renderPayments();
+            }
+        }, (error) => console.error("Realtime Payments Error:", error));
+
+        const timetablesRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'timetables');
+        onSnapshot(timetablesRef, (docSnap) => {
+            if (docSnap.exists() && docSnap.data().matrices) {
+                localStorage.setItem('sys_timetable_matrices', JSON.stringify(docSnap.data().matrices));
+                if (typeof renderTimetable === 'function') renderTimetable();
+            }
+        }, (error) => console.error("Realtime Timetables Error:", error));
 
         const credsRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'credentials');
         onSnapshot(credsRef, (docSnap) => {
@@ -1428,6 +1483,7 @@
 
             matrices[grade] = currentMatrix;
             saveData('sys_timetable_matrices', matrices);
+            if (typeof window.syncTimetablesToCloud === 'function') window.syncTimetablesToCloud(matrices);
             showToast(`បានរក្សាទុកកាលវិភាគថ្នាក់ទី ${grade} ជោគជ័យ!`);
         }
 
@@ -1996,6 +2052,7 @@
                 students.push({ id, name, gender, grade, phone });
             }
             saveData('sys_students', students);
+            if (typeof window.syncStudentsToCloud === 'function') window.syncStudentsToCloud(students);
             closeModal('student-modal');
             populateGradeDropdowns();
             renderStudents();
@@ -2006,6 +2063,7 @@
             if (!confirm('លុបសិស្សនេះ?')) return;
             let students = getData('sys_students', []).filter(s => s.id !== id);
             saveData('sys_students', students);
+            if (typeof window.syncStudentsToCloud === 'function') window.syncStudentsToCloud(students);
             renderStudents();
         }
 
@@ -2045,6 +2103,7 @@
                 teachers.push({ id, name, gender, subject, phone });
             }
             saveData('sys_teachers', teachers);
+            if (typeof window.syncTeachersToCloud === 'function') window.syncTeachersToCloud(teachers);
             closeModal('teacher-modal');
             renderTeachers();
             showToast('រក្សាទុកគ្រូជោគជ័យ!');
@@ -2054,6 +2113,7 @@
             if (!confirm('លុបគ្រូនេះ?')) return;
             let teachers = getData('sys_teachers', []).filter(t => t.id !== id);
             saveData('sys_teachers', teachers);
+            if (typeof window.syncTeachersToCloud === 'function') window.syncTeachersToCloud(teachers);
             renderTeachers();
         }
 
@@ -2086,6 +2146,7 @@
                 date: document.getElementById('m-payment-date').value
             });
             saveData('sys_payments', payments);
+            if (typeof window.syncPaymentsToCloud === 'function') window.syncPaymentsToCloud(payments);
             closeModal('payment-modal');
             renderPayments();
             showToast('កត់ត្រាការបង់ប្រាក់ជោគជ័យ!');
@@ -2095,6 +2156,7 @@
             if (!confirm('លុបការបង់ប្រាក់នេះ?')) return;
             let payments = getData('sys_payments', []).filter(p => p.id !== id);
             saveData('sys_payments', payments);
+            if (typeof window.syncPaymentsToCloud === 'function') window.syncPaymentsToCloud(payments);
             renderPayments();
         }
 
