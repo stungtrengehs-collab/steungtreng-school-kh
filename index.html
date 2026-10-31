@@ -501,10 +501,13 @@
                     </select>
                 </div>
 
-                <div class="flex items-center space-x-2">
+                <div class="flex items-center space-x-2 flex-wrap gap-y-2">
                     <input type="text" id="search-payment" onkeyup="renderPayments()" placeholder="ស្វែងរក ID ឬឈ្មោះ..." class="border border-slate-300 rounded-lg px-3 py-1.5 text-xs">
                     <button onclick="exportPaymentsToExcel()" class="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold transition flex items-center whitespace-nowrap">
                         <i class="fas fa-file-excel mr-1"></i>ទាញយក Excel
+                    </button>
+                    <button onclick="printPaymentsTable()" class="px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition flex items-center whitespace-nowrap">
+                        <i class="fas fa-print mr-1"></i>🖨️ បោះពុម្ពតារាង
                     </button>
                     <button onclick="openPaymentModal()" class="admin-only px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition flex items-center whitespace-nowrap">
                         <i class="fas fa-plus mr-1"></i>កត់ត្រាការបង់ប្រាក់
@@ -589,14 +592,14 @@
                     <table class="w-full text-center text-xs text-slate-600 border-collapse">
                         <thead class="bg-slate-100 text-slate-700 font-bold uppercase border-b">
                             <tr>
-                                <th class="p-3 border w-36 bg-slate-200/60">ម៉ោង / ថ្ងៃ</th>
+                                <th class="p-3 border w-40 bg-slate-200/60">ម៉ោង / ថ្ងៃ</th>
                                 <th class="p-3 border bg-emerald-50/60 w-1/6">ចន្ទ (Mon)</th>
                                 <th class="p-3 border w-1/6">អង្គារ (Tue)</th>
                                 <th class="p-3 border bg-emerald-50/60 w-1/6">ពុធ (Wed)</th>
                                 <th class="p-3 border w-1/6">ព្រហស្បតិ៍ (Thu)</th>
                                 <th class="p-3 border bg-emerald-50/60 w-1/6">សុក្រ (Fri)</th>
                                 <th class="p-3 border w-1/6">សៅរ៍ (Sat)</th>
-                                <th class="p-3 border admin-only w-10">លុប</th>
+                                <th class="p-3 border admin-only w-16">សកម្មភាព</th>
                             </tr>
                         </thead>
                         <tbody id="timetable-matrix-body" class="divide-y divide-slate-100 font-medium"></tbody>
@@ -671,6 +674,12 @@
                         </button>
                         <button onclick="printReport()" class="flex-1 py-2 px-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold flex items-center justify-center">
                             <i class="fas fa-print mr-1"></i>Print
+                        </button>
+                        <button onclick="sendReportToTelegram()" class="flex-1 py-2 px-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-semibold flex items-center justify-center whitespace-nowrap shadow" title="ផ្ញើសេចក្តីសង្ខេបរបាយការណ៍សរុប">
+                            <i class="fab fa-telegram-plane mr-1"></i> Telegram សង្ខេប
+                        </button>
+                        <button onclick="sendIndividualReportsToParents()" class="flex-1 py-2 px-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold flex items-center justify-center whitespace-nowrap shadow" title="ផ្ញើសារដាច់ដោយឡែកទៅ Telegram អាណាព្យាបាលសិស្សម្នាក់ៗ">
+                            <i class="fas fa-paper-plane mr-1"></i> ផ្ញើទៅអាណាព្យាបាល
                         </button>
                         <button onclick="clearFilteredReportLogs()" class="admin-only flex-1 py-2 px-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold flex items-center justify-center whitespace-nowrap shadow">
                             <i class="fas fa-trash-alt mr-1"></i>លុបទាំងអស់
@@ -808,8 +817,9 @@
     <div id="timeslot-modal" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
             <h3 class="text-base font-bold text-slate-800 mb-4 border-b pb-2 flex items-center">
-                <i class="fas fa-clock text-emerald-600 mr-2"></i>បន្ថែមចន្លោះម៉ោងសិក្សា
+                <i class="fas fa-clock text-emerald-600 mr-2"></i><span id="timeslot-modal-title">បន្ថែមចន្លោះម៉ោងសិក្សា</span>
             </h3>
+            <input type="hidden" id="editing-timeslot-index" value="-1">
             <div class="space-y-4 text-xs">
                 <div>
                     <label class="block font-bold text-slate-700 mb-1.5">ជ្រើសរើសចន្លោះម៉ោង</label>
@@ -845,7 +855,7 @@
                 </div>
                 <div class="flex space-x-2 pt-2">
                     <button type="button" onclick="closeModal('timeslot-modal')" class="w-1/2 py-2.5 bg-slate-200 text-slate-700 rounded-lg font-semibold">បោះបង់</button>
-                    <button type="button" onclick="confirmAddTimeSlot()" class="w-1/2 py-2.5 bg-emerald-600 text-white rounded-lg font-bold">បន្ថែម</button>
+                    <button type="button" onclick="confirmSaveTimeSlot()" class="w-1/2 py-2.5 bg-emerald-600 text-white rounded-lg font-bold">រក្សាទុក</button>
                 </div>
             </div>
         </div>
@@ -966,26 +976,33 @@
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative">
             <div id="receipt-printable-area" class="bg-white p-6 rounded-xl border border-slate-200 space-y-4">
                 <div class="text-center border-b pb-4">
-                    <h2 class="font-bold text-slate-800 text-base">វិទ្យាល័យឥស្លាមស្ទឹងត្រែង</h2>
-                    <p class="text-[11px] text-slate-500">ប័ណ្ណទូទាត់ប្រាក់ / PAYMENT RECEIPT</p>
-                    <div class="mt-2 inline-block px-3 py-0.5 bg-slate-100 rounded-full text-[10px] font-mono font-bold" id="receipt-no">REC-000</div>
+                    <h2 class="font-bold text-slate-800 text-lg">វិទ្យាល័យឥស្លាមស្ទឹងត្រែង</h2>
+                    <p class="text-xs text-slate-500 font-semibold mt-0.5">ប័ណ្ណទូទាត់ប្រាក់ / PAYMENT RECEIPT</p>
+                    <div class="mt-2 inline-block px-3 py-1 bg-slate-100 rounded-full text-xs font-mono font-bold text-slate-700" id="receipt-no">REC-000</div>
                 </div>
-                <div class="space-y-2 text-xs">
-                    <div class="flex justify-between border-b pb-1"><span>កាលបរិច្ឆេទ៖</span><span id="receipt-date" class="font-bold">---</span></div>
-                    <div class="flex justify-between border-b pb-1"><span>ID សិស្ស៖</span><span id="receipt-student-id" class="font-mono font-bold">---</span></div>
-                    <div class="flex justify-between border-b pb-1"><span>ឈ្មោះសិស្ស៖</span><span id="receipt-student-name" class="font-bold text-emerald-700">---</span></div>
-                    <div class="flex justify-between border-b pb-1"><span>ថ្នាក់រៀន៖</span><span id="receipt-grade" class="font-bold">---</span></div>
-                    <div class="flex justify-between border-b pb-1"><span>ប្រភេទបង់៖</span><span id="receipt-term">---</span></div>
-                    <div class="flex justify-between border-b pb-1"><span>វិធីសាស្ត្រ៖</span><span id="receipt-method">---</span></div>
+                <div class="space-y-2.5 text-xs">
+                    <div class="flex justify-between border-b pb-1.5"><span class="text-slate-500">កាលបរិច្ឆេទ៖</span><span id="receipt-date" class="font-bold text-slate-800">---</span></div>
+                    <div class="flex justify-between border-b pb-1.5"><span class="text-slate-500">ID សិស្ស៖</span><span id="receipt-student-id" class="font-mono font-bold text-slate-800">---</span></div>
+                    <div class="flex justify-between border-b pb-1.5"><span class="text-slate-500">ឈ្មោះសិស្ស៖</span><span id="receipt-student-name" class="font-bold text-emerald-700 text-sm">---</span></div>
+                    <div class="flex justify-between border-b pb-1.5"><span class="text-slate-500">ថ្នាក់រៀន៖</span><span id="receipt-grade" class="font-bold text-slate-800">---</span></div>
+                    <div class="flex justify-between border-b pb-1.5"><span class="text-slate-500">ប្រភេទបង់៖</span><span id="receipt-term" class="font-semibold text-slate-800">---</span></div>
+                    <div class="flex justify-between border-b pb-1.5"><span class="text-slate-500">វិធីសាស្ត្រទូទាត់៖</span><span id="receipt-method" class="font-semibold text-slate-800">---</span></div>
+                    <div class="flex justify-between border-b pb-1.5"><span class="text-slate-500">ស្ថានភាព៖</span><span id="receipt-status-text" class="font-bold text-emerald-600">---</span></div>
                 </div>
-                <div class="bg-emerald-50 rounded-xl p-3 text-center border border-emerald-200">
-                    <span class="text-[11px] font-bold text-emerald-800 uppercase block">ទឹកប្រាក់សរុប</span>
-                    <span id="receipt-amount" class="text-2xl font-black text-emerald-600">$0.00</span>
+                <div class="bg-emerald-50 rounded-xl p-4 text-center border border-emerald-200 mt-4">
+                    <span class="text-xs font-bold text-emerald-800 uppercase block tracking-wider mb-1">ចំនួនទឹកប្រាក់ទទួលបានសរុប</span>
+                    <span id="receipt-amount" class="text-3xl font-black text-emerald-600">$0.00</span>
+                </div>
+                <div class="pt-4 border-t border-dashed border-slate-300 flex justify-between text-[11px] text-slate-400 font-semibold">
+                    <span>ហត្ថលេខាអ្នកទទួលប្រាក់</span>
+                    <span>ហត្ថលេខាអ្នកបង់ប្រាក់</span>
                 </div>
             </div>
             <div class="flex space-x-2 mt-4 no-print">
-                <button onclick="closeModal('payment-receipt-modal')" class="w-1/2 py-2 bg-slate-200 rounded-xl text-xs font-semibold">បិទ</button>
-                <button onclick="printPaymentReceipt()" class="w-1/2 py-2 bg-emerald-600 text-white rounded-xl text-xs font-semibold">បោះពុម្ព</button>
+                <button onclick="closeModal('payment-receipt-modal')" class="w-1/2 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-semibold transition">បិទ</button>
+                <button onclick="printPaymentReceipt()" class="w-1/2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center justify-center">
+                    <i class="fas fa-print mr-1.5"></i>បោះពុម្ពវិក្កយបត្រ
+                </button>
             </div>
         </div>
     </div>
@@ -1371,199 +1388,259 @@
                     selectHtml += `</select></div>`;
                     rowHtml += `<td class="p-1 border">${selectHtml}</td>`;
                 });
-                rowHtml += `<td class="p-1 border admin-only"><button onclick="removeTimeSlot(${rowIdx})" class="p-1 text-rose-500"><i class="fas fa-trash-alt"></i></button></td></tr>`;
+                rowHtml += `
+                    <td class="p-1 border admin-only text-center space-x-1">
+                        <button onclick="editTimeSlot(${rowIdx})" class="p-1.5 text-blue-600 hover:text-blue-800" title="កែប្រែម៉ោង"><i class="fas fa-pen"></i></button>
+                        <button onclick="removeTimeSlot(${rowIdx})" class="p-1.5 text-rose-500 hover:text-rose-700" title="លុបម៉ោង"><i class="fas fa-trash-alt"></i></button>
+                    </td>
+                </tr>`;
                 tbody.innerHTML += rowHtml;
             });
         }
 
         function updateCellColor(selectEl) {
-            const subjects = getData('sys_subjects', officialSampleSubjects);
-            const colorMap = {};
-            subjects.forEach(s => colorMap[s.name] = s.color || '#f1f5f9');
             const val = selectEl.value;
-            const container = selectEl.closest('div');
-            if (container) container.style.backgroundColor = val && colorMap[val] ? colorMap[val] : '#ffffff';
+            const parentDiv = selectEl.closest('div');
+            if (!parentDiv) return;
+            const subjects = getData('sys_subjects', officialSampleSubjects);
+            const subObj = subjects.find(s => s.name === val);
+            parentDiv.style.backgroundColor = subObj && subObj.color ? subObj.color : '#ffffff';
         }
 
         function saveTimetableMatrix() {
             const grade = document.getElementById('schedule-class-select')?.value || '7A';
             const matrices = getData('sys_timetable_matrices', {});
-            const rows = document.querySelectorAll('#timetable-matrix-body tr');
-            const matrixData = {};
-            rows.forEach((row, rowIdx) => {
-                const subSelects = row.querySelectorAll('.timetable-sub-select');
-                const teacherSelects = row.querySelectorAll('.timetable-teacher-select');
-                subSelects.forEach((subSel, colIdx) => {
-                    const day = subSel.getAttribute('data-day');
-                    const subVal = subSel.value;
-                    const teacherVal = teacherSelects[colIdx] ? teacherSelects[colIdx].value : '';
-                    if (day) matrixData[`${rowIdx}_${day}`] = subVal ? `${subVal}|${teacherVal}` : '';
-                });
+            const currentMatrix = {};
+
+            const subSelects = document.querySelectorAll('.timetable-sub-select');
+            subSelects.forEach(subSel => {
+                const slot = subSel.getAttribute('data-slot');
+                const day = subSel.getAttribute('data-day');
+                const teacherSel = document.querySelector(`.timetable-teacher-select[data-slot="${slot}"][data-day="${day}"]`);
+                
+                const subVal = subSel.value || '';
+                const teacherVal = teacherSel ? teacherSel.value : '';
+                
+                if (subVal || teacherVal) {
+                    currentMatrix[`${slot}_${day}`] = `${subVal}|${teacherVal}`;
+                }
             });
-            matrices[grade] = matrixData;
+
+            matrices[grade] = currentMatrix;
             saveData('sys_timetable_matrices', matrices);
             showToast(`បានរក្សាទុកកាលវិភាគថ្នាក់ទី ${grade} ជោគជ័យ!`);
         }
 
-        function applyScheduleTemplate(type) {
-            const grade = document.getElementById('schedule-class-select')?.value || '7A';
-            const matrices = getData('sys_timetable_matrices', {});
-            const subjects = ["ភាសាខ្មែរ", "គណិតវិទ្យា", "រូបវិទ្យា", "គីមីវិទ្យា", "ភាសាអង់គ្លេស"];
-            const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-            const matrixData = {};
-            const slots = type === 'morning' ? ["07:00 - 08:00", "08:00 - 09:00", "09:00 - 10:00", "10:00 - 11:00"] : ["13:00 - 14:00", "14:00 - 15:00", "15:00 - 16:00", "16:00 - 17:00"];
-            matrices[`time_slots_${grade}`] = slots;
-            slots.forEach((s, slotIdx) => {
-                days.forEach((day, dIdx) => {
-                    const sub = subjects[(slotIdx + dIdx) % subjects.length];
-                    matrixData[`${slotIdx}_${day}`] = `${sub}|`;
-                });
-            });
-            matrices[grade] = matrixData;
-            saveData('sys_timetable_matrices', matrices);
-            renderTimetable();
-            showToast('បានដាក់គំរូកាលវិភាគជោគជ័យ!');
+        function openTimeSlotModal() {
+            document.getElementById('timeslot-modal-title').textContent = 'បន្ថែមចន្លោះម៉ោងសិក្សា';
+            document.getElementById('editing-timeslot-index').value = '-1';
+            document.getElementById('m-preset-slot-select').value = '07:00 - 08:00';
+            toggleCustomSlotInput();
+            openModal('timeslot-modal');
         }
 
-        function clearTimetableGrid() {
-            if (!confirm('តើអ្នកចង់សម្អាតតារាងកាលវិភាគនេះមែនទេ?')) return;
-            const grade = document.getElementById('schedule-class-select')?.value || '7A';
-            const matrices = getData('sys_timetable_matrices', {});
-            matrices[grade] = {};
-            saveData('sys_timetable_matrices', matrices);
-            renderTimetable();
-            showToast('សម្អាតតារាងជោគជ័យ!');
-        }
-
-        function openTimeSlotModal() { openModal('timeslot-modal'); }
-        function toggleCustomSlotInput() {
-            const sel = document.getElementById('m-preset-slot-select').value;
-            const container = document.getElementById('custom-slot-picker-container');
-            if (sel === 'CUSTOM') container.classList.remove('hidden');
-            else container.classList.add('hidden');
-        }
-
-        function confirmAddTimeSlot() {
-            const sel = document.getElementById('m-preset-slot-select').value;
-            let finalSlot = sel === 'CUSTOM' ? `${document.getElementById('m-custom-start-time').value} - ${document.getElementById('m-custom-end-time').value}` : sel;
+        function editTimeSlot(rowIdx) {
             const grade = document.getElementById('schedule-class-select')?.value || '7A';
             const matrices = getData('sys_timetable_matrices', {});
             const timeSlots = matrices[`time_slots_${grade}`] || ["07:00 - 08:00", "08:00 - 09:00", "09:00 - 10:00", "10:00 - 11:00"];
-            timeSlots.push(finalSlot);
+            
+            if (rowIdx < 0 || rowIdx >= timeSlots.length) return;
+
+            document.getElementById('timeslot-modal-title').textContent = 'កែប្រែចន្លោះម៉ោងសិក្សា';
+            document.getElementById('editing-timeslot-index').value = rowIdx;
+            
+            const currentSlotVal = timeSlots[rowIdx];
+            const presetSel = document.getElementById('m-preset-slot-select');
+            
+            let existsInPreset = false;
+            for (let i = 0; i < presetSel.options.length; i++) {
+                if (presetSel.options[i].value === currentSlotVal) {
+                    presetSel.selectedIndex = i;
+                    existsInPreset = true;
+                    break;
+                }
+            }
+
+            if (!existsInPreset) {
+                presetSel.value = 'CUSTOM';
+                const parts = currentSlotVal.split('-').map(p => p.trim());
+                if (parts.length === 2) {
+                    document.getElementById('m-custom-start-time').value = parts[0];
+                    document.getElementById('m-custom-end-time').value = parts[1];
+                }
+            }
+            toggleCustomSlotInput();
+            openModal('timeslot-modal');
+        }
+
+        function confirmSaveTimeSlot() {
+            const grade = document.getElementById('schedule-class-select')?.value || '7A';
+            const matrices = getData('sys_timetable_matrices', {});
+            let timeSlots = matrices[`time_slots_${grade}`] || ["07:00 - 08:00", "08:00 - 09:00", "09:00 - 10:00", "10:00 - 11:00"];
+            
+            const editIdx = parseInt(document.getElementById('editing-timeslot-index').value, 10);
+            const presetVal = document.getElementById('m-preset-slot-select').value;
+            let finalSlotStr = presetVal;
+
+            if (presetVal === 'CUSTOM') {
+                const sTime = document.getElementById('m-custom-start-time').value;
+                const eTime = document.getElementById('m-custom-end-time').value;
+                if (!sTime || !eTime) return showToast('សូមជ្រើសរើសម៉ោងឱ្យបានត្រឹមត្រូវ!', false);
+                finalSlotStr = `${sTime} - ${eTime}`;
+            }
+
+            if (editIdx >= 0 && editIdx < timeSlots.length) {
+                timeSlots[editIdx] = finalSlotStr;
+            } else {
+                timeSlots.push(finalSlotStr);
+            }
+
             matrices[`time_slots_${grade}`] = timeSlots;
             saveData('sys_timetable_matrices', matrices);
             closeModal('timeslot-modal');
             renderTimetable();
-            showToast('បន្ថែមម៉ោងជោគជ័យ!');
+            showToast('បានកែប្រែចន្លោះម៉ោងជោគជ័យ!');
         }
 
         function removeTimeSlot(rowIdx) {
-            if (!confirm('លុបចន្លោះម៉ោងនេះ?')) return;
             const grade = document.getElementById('schedule-class-select')?.value || '7A';
+            if (!confirm(`តើអ្នកពិតជាចង់លុបចន្លោះម៉ោងនេះចេញពីថ្នាក់ទី ${grade} ឬ?`)) return;
             const matrices = getData('sys_timetable_matrices', {});
             let timeSlots = matrices[`time_slots_${grade}`] || ["07:00 - 08:00", "08:00 - 09:00", "09:00 - 10:00", "10:00 - 11:00"];
+            
             timeSlots.splice(rowIdx, 1);
             matrices[`time_slots_${grade}`] = timeSlots;
             saveData('sys_timetable_matrices', matrices);
             renderTimetable();
+            showToast('បានលុបចន្លោះម៉ោងជោគជ័យ!');
         }
 
-        function renderClassTelegramInputs() {
-            const students = getData('sys_students', []);
-            const grades = Array.from(new Set(students.map(s => s.grade))).sort();
-            const defaultGrades = ['7A', '7B', '8A', '9A', '10A', '11A', '12A', '12B'];
-            const allGrades = Array.from(new Set([...defaultGrades, ...grades])).sort();
-            const tgConfig = getData('sys_telegram_config', {});
-            const classChatIds = tgConfig.classChatIds || {};
-            const container = document.getElementById('class-chatids-container');
-            if (!container) return;
-            container.innerHTML = '';
-            document.getElementById('tg-bot-token').value = tgConfig.botToken || '';
-            document.getElementById('tg-chat-id').value = tgConfig.chatId || '';
-            document.getElementById('tg-enable').checked = !!tgConfig.enabled;
-            allGrades.forEach(g => {
-                container.innerHTML += `
-                    <div class="p-2 border border-slate-200 rounded-lg bg-white space-y-1">
-                        <div class="text-[11px] font-bold text-slate-700">🏫 ថ្នាក់ទី ${g}</div>
-                        <input type="text" id="tg-chatid-${g}" value="${classChatIds[g] || ''}" placeholder="Chat ID ថ្នាក់ទី ${g}" class="w-full border rounded px-2 py-1 text-[11px]">
-                    </div>
-                `;
+        function updateCellColor(selectEl) {
+            const val = selectEl.value;
+            const parentDiv = selectEl.closest('div');
+            if (!parentDiv) return;
+            const subjects = getData('sys_subjects', officialSampleSubjects);
+            const subObj = subjects.find(s => s.name === val);
+            parentDiv.style.backgroundColor = subObj && subObj.color ? subObj.color : '#ffffff';
+        }
+
+        function saveTimetableMatrix() {
+            const grade = document.getElementById('schedule-class-select')?.value || '7A';
+            const matrices = getData('sys_timetable_matrices', {});
+            const currentMatrix = {};
+
+            // Loop through all subject & teacher selects in the timetable matrix
+            const subSelects = document.querySelectorAll('.timetable-sub-select');
+            subSelects.forEach(subSel => {
+                const slot = subSel.getAttribute('data-slot');
+                const day = subSel.getAttribute('data-day');
+                const teacherSel = document.querySelector(`.timetable-teacher-select[data-slot="${slot}"][data-day="${day}"]`);
+                
+                const subVal = subSel.value || '';
+                const teacherVal = teacherSel ? teacherSel.value : '';
+                
+                if (subVal || teacherVal) {
+                    currentMatrix[`${slot}_${day}`] = `${subVal}|${teacherVal}`;
+                }
             });
+
+            matrices[grade] = currentMatrix;
+            saveData('sys_timetable_matrices', matrices);
+            showToast(`បានរក្សាទុកកាលវិភាគថ្នាក់ទី ${grade} ជោគជ័យ!`);
         }
 
-        function saveTelegramSettings() {
-            const students = getData('sys_students', []);
-            const grades = Array.from(new Set(students.map(s => s.grade))).sort();
-            const defaultGrades = ['7A', '7B', '8A', '9A', '10A', '11A', '12A', '12B'];
-            const allGrades = Array.from(new Set([...defaultGrades, ...grades])).sort();
-            const classChatIds = {};
-            allGrades.forEach(g => {
-                const chatIdInput = document.getElementById(`tg-chatid-${g}`);
-                if (chatIdInput && chatIdInput.value.trim()) classChatIds[g] = chatIdInput.value.trim();
-            });
-            const config = {
-                botToken: document.getElementById('tg-bot-token').value.trim(),
-                chatId: document.getElementById('tg-chat-id').value.trim(),
-                enabled: document.getElementById('tg-enable').checked,
-                classChatIds
-            };
-            saveData('sys_telegram_config', config);
-            showToast('រក្សាទុក Telegram ជោគជ័យ!');
+        function applyScheduleTemplate(shift) {
+            const grade = document.getElementById('schedule-class-select')?.value || '7A';
+            const matrices = getData('sys_timetable_matrices', {});
+            
+            if (shift === 'morning') {
+                matrices[`time_slots_${grade}`] = ["07:00 - 08:00", "08:00 - 09:00", "09:00 - 10:00", "10:00 - 11:00"];
+            } else {
+                matrices[`time_slots_${grade}`] = ["13:00 - 14:00", "14:00 - 15:00", "15:00 - 16:00", "16:00 - 17:00"];
+            }
+            
+            saveData('sys_timetable_matrices', matrices);
+            renderTimetable();
+            showToast(`បានដាក់គំរូ វេន${shift === 'morning' ? 'ព្រឹក' : 'រសៀល'} សម្រាប់ថ្នាក់ទី ${grade} ជោគជ័យ!`);
         }
 
-        function saveCredentialsSettings() {
-            const adminUser = document.getElementById('sys-admin-username').value.trim();
-            const adminPass = document.getElementById('sys-admin-password').value;
-            const teacherUser = document.getElementById('sys-teacher-username').value.trim();
-            const teacherPass = document.getElementById('sys-teacher-password').value;
-            if (!adminUser || !adminPass || !teacherUser || !teacherPass) return showToast('សូមបំពេញឱ្យបានគ្រប់គ្រាន់!', false);
-            const newCreds = { adminUser, adminPass, teacherUser, teacherPass };
-            saveData('sys_credentials', newCreds);
-            if (typeof window.syncCredentialsToCloud === 'function') window.syncCredentialsToCloud(newCreds);
-            showToast('ប្តូរ Password ជោគជ័យ!');
+        function clearTimetableGrid() {
+            const grade = document.getElementById('schedule-class-select')?.value || '7A';
+            if (!confirm(`តើអ្នកពិតជាចង់សម្អាតតារាងកាលវិភាគថ្នាក់ទី ${grade} ឬ?`)) return;
+            const matrices = getData('sys_timetable_matrices', {});
+            matrices[grade] = {};
+            saveData('sys_timetable_matrices', matrices);
+            renderTimetable();
+            showToast(`បានសម្អាតតារាងកាលវិភាគថ្នាក់ទី ${grade} រួចរាល់!`);
         }
 
-        async function sendTelegramMessage(messageText, grade = null) {
-            const tgConfig = getData('sys_telegram_config', {});
-            if (!tgConfig.enabled) return;
-            let token = tgConfig.botToken;
-            let chatId = tgConfig.chatId;
-            if (grade && tgConfig.classChatIds && tgConfig.classChatIds[grade]) chatId = tgConfig.classChatIds[grade];
-            if (!token || !chatId) return;
-            try {
-                await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ chat_id: chatId, text: messageText, parse_mode: 'HTML' })
-                });
-            } catch(e) {}
+        function openTimeSlotModal() {
+            openModal('timeslot-modal');
         }
 
+        function toggleCustomSlotInput() {
+            const sel = document.getElementById('m-preset-slot-select').value;
+            const customDiv = document.getElementById('custom-slot-picker-container');
+            if (sel === 'CUSTOM') {
+                customDiv.classList.remove('hidden');
+            } else {
+                customDiv.classList.add('hidden');
+            }
+        }
         function startScanner() {
-            if (html5QrcodeScanner) return;
+            const scannerType = document.getElementById('scanner-type').value;
+            showToast(`កំពុងបើកកាមេរ៉ាស្កែន (${scannerType === 'student' ? 'សិស្ស' : 'គ្រូ'})...`);
+
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.clear().catch(() => {});
+            }
+
             html5QrcodeScanner = new Html5Qrcode("reader");
+            const config = { fps: 10, qrbox: { width: 220, height: 220 } };
+
             html5QrcodeScanner.start(
                 { facingMode: "environment" },
-                { fps: 10, qrbox: { width: 250, height: 250 } },
-                (decodedText) => {
-                    const cleanId = decodedText.trim();
-                    const now = Date.now();
-                    if (isProcessingScan) return;
-                    if (cleanId === lastScannedId && (now - lastScannedTime) < 3000) return;
-                    isProcessingScan = true;
-                    lastScannedId = cleanId;
-                    lastScannedTime = now;
-                    processAttendance(cleanId);
-                    setTimeout(() => { isProcessingScan = false; }, 3000);
-                },
-                (err) => {}
-            ).catch(err => showToast('កាមេរ៉ាមិនដំណើរការ!', false));
+                config,
+                onScanSuccess,
+                onScanFailure
+            ).catch(err => {
+                console.error("Camera start error:", err);
+                showToast("មិនអាចបើកកាមេរ៉ាបានទេ! សូមពិនិត្យ Permission កាមេរ៉ា", false);
+            });
         }
 
         function stopScanner() {
             if (html5QrcodeScanner) {
-                html5QrcodeScanner.stop().then(() => { html5QrcodeScanner = null; }).catch(e => {});
+                html5QrcodeScanner.stop().then(() => {
+                    html5QrcodeScanner.clear();
+                    showToast("បានបិទកាមេរ៉ារួចរាល់");
+                }).catch(err => console.error(err));
             }
+        }
+
+        function onScanSuccess(decodedText) {
+            const now = Date.now();
+            const scannedId = decodedText.trim();
+
+            // Prevent duplicate rapid scans within 2.5 seconds for the same ID
+            if (isProcessingScan || (scannedId === lastScannedId && (now - lastScannedTime) < 2500)) {
+                return;
+            }
+
+            isProcessingScan = true;
+            lastScannedId = scannedId;
+            lastScannedTime = now;
+
+            // Process scan immediately with upper case ID logic
+            processAttendance(scannedId);
+
+            setTimeout(() => {
+                isProcessingScan = false;
+            }, 1500);
+        }
+
+        function onScanFailure(error) {
+            // Ignore minor frame failures during continuous camera scanning
         }
 
         function processManualID() {
@@ -1594,18 +1671,48 @@
             const timeStr = now.toTimeString().split(' ')[0].substring(0,5);
             let status = forcedStatus || 'PRESENT';
 
-            let subjectName = person.subject || '---';
+            let subjectName = person.subject || 'ម៉ោងសិក្សាទូទៅ';
+            let teacherName = '---';
 
+            // Smart Timetable & Subject Detection based on current time slot
             if (type === 'student') {
                 const dayIndex = now.getDay();
                 const dayMap = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
                 const dayKey = dayMap[dayIndex];
-                const matrices = getData('sys_timetable_matrices', {});
-                const matrix = matrices[person.grade] || {};
-                const rawVal = matrix[`0_${dayKey}`] || '';
-                if (rawVal) {
-                    const parts = rawVal.split('|');
-                    subjectName = parts[0] || 'ម៉ោងសិក្សា';
+                
+                if (dayKey !== 'sun') {
+                    const grade = person.grade || '7A';
+                    const matrices = getData('sys_timetable_matrices', {});
+                    const timeSlots = matrices[`time_slots_${grade}`] || ["07:00 - 08:00", "08:00 - 09:00", "09:00 - 10:00", "10:00 - 11:00"];
+                    const currentMatrix = matrices[grade] || {};
+
+                    // Match current scanning time with time slots
+                    let matchedSlotIdx = -1;
+                    const curTimeVal = parseInt(timeStr.replace(':', ''), 10);
+
+                    timeSlots.forEach((slotStr, sIdx) => {
+                        const parts = slotStr.split('-').map(p => p.trim());
+                        if (parts.length === 2) {
+                            const startVal = parseInt(parts[0].replace(':', ''), 10);
+                            const endVal = parseInt(parts[1].replace(':', ''), 10);
+                            if (curTimeVal >= startVal && curTimeVal <= endVal) {
+                                matchedSlotIdx = sIdx;
+                            }
+                        }
+                    });
+
+                    if (matchedSlotIdx === -1 && timeSlots.length > 0) {
+                        matchedSlotIdx = 0; // Default to first slot if outside bounds
+                    }
+
+                    if (matchedSlotIdx !== -1) {
+                        const rawCell = currentMatrix[`${matchedSlotIdx}_${dayKey}`] || '';
+                        if (rawCell) {
+                            const cellParts = rawCell.split('|');
+                            if (cellParts[0]) subjectName = cellParts[0];
+                            if (cellParts[1]) teacherName = cellParts[1];
+                        }
+                    }
                 }
             }
 
@@ -1616,6 +1723,7 @@
                 name: person.name,
                 grade: person.grade || '---',
                 sub: subjectName,
+                teacher: teacherName,
                 date: dateStr,
                 time: timeStr,
                 status,
@@ -1627,15 +1735,36 @@
             saveData('sys_attendance', logs);
             if (typeof window.syncAttendanceToCloud === 'function') window.syncAttendanceToCloud(log);
 
+            const statusBadgeTxt = status === 'PRESENT' ? 'មកទាន់ពេល ✅' : (status === 'LATE' ? 'មកយឺត 🟡' : (status === 'PERMISSION' ? 'សុំច្បាប់ 🔵' : 'អវត្តមាន 🔴'));
+
             document.getElementById('scan-result-card').innerHTML = `
-                <div class="p-4 bg-emerald-50 border rounded-xl text-center space-y-1">
+                <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-center space-y-1">
                     <div class="font-bold text-slate-800 text-base">${person.name}</div>
-                    <div class="text-xs text-emerald-700">${person.id} | ${type === 'student' ? 'ថ្នាក់ទី ' + person.grade : person.subject}</div>
-                    <span class="inline-block mt-2 px-3 py-1 bg-emerald-600 text-white text-xs font-bold rounded-full">${status}</span>
+                    <div class="text-xs text-emerald-700 font-semibold">${person.id} | ${type === 'student' ? 'ថ្នាក់ទី ' + person.grade : person.subject}</div>
+                    <div class="text-xs text-slate-500 font-medium">📚 មុខវិជ្ជា៖ ${subjectName}</div>
+                    <span class="inline-block mt-2 px-3 py-1 bg-emerald-600 text-white text-xs font-bold rounded-full">${statusBadgeTxt}</span>
                 </div>
             `;
 
-            sendTelegramMessage(`<b>[កត់វត្តមាន]</b>\n👤 ឈ្មោះ៖ ${person.name} (${person.id})\n⏰ ម៉ោង៖ ${timeStr}\n📊 ស្ថានភាព៖ ${status}`, person.grade);
+            // Build official message template
+            let tgMsg = `🔔 <b>[កត់វត្តមានស្វ័យប្រវត្តិ]</b>\n`;
+            tgMsg += `🏫 <b>វិទ្យាល័យឥស្លាមស្ទឹងត្រែង</b>\n`;
+            tgMsg += `---------------------------------\n`;
+            tgMsg += `👤 <b>ឈ្មោះ៖</b> ${person.name} (${person.id})\n`;
+            tgMsg += `🏫 <b>ថ្នាក់/មុខវិជ្ជា៖</b> ${type === 'student' ? 'ថ្នាក់ទី ' + person.grade : person.subject}\n`;
+            tgMsg += `📚 <b>មុខវិជ្ជាកំពុងរៀន៖</b> ${subjectName}\n`;
+            if (teacherName && teacherName !== '---') {
+                tgMsg += `👨‍🏫 <b>គ្រូបង្រៀន៖</b> ${teacherName}\n`;
+            }
+            tgMsg += `⏰ <b>ម៉ោងស្កែន/កត់៖</b> ${timeStr}\n`;
+            tgMsg += `📊 <b>ស្ថានភាពវត្តមាន៖</b> ${statusBadgeTxt}\n`;
+            if (forcedNote) {
+                tgMsg += `📝 <b>កំណត់សម្គាល់៖</b> ${forcedNote}\n`;
+            }
+            tgMsg += `---------------------------------\n`;
+            tgMsg += `📅 <b>កាលបរិច្ឆេទ៖</b> ${dateStr}`;
+
+            sendTelegramMessage(tgMsg, person.grade);
             showToast(`កត់វត្តមាន ${person.name} ជោគជ័យ!`);
         }
 
@@ -1698,11 +1827,101 @@
             document.getElementById('receipt-date').textContent = p.date;
             document.getElementById('receipt-student-id').textContent = p.studentId;
             document.getElementById('receipt-student-name').textContent = p.studentName;
-            document.getElementById('receipt-grade').textContent = p.grade;
+            document.getElementById('receipt-grade').textContent = `ថ្នាក់ទី ${p.grade}`;
             document.getElementById('receipt-term').textContent = p.term;
             document.getElementById('receipt-method').textContent = p.method;
+            document.getElementById('receipt-status-text').textContent = p.status === 'PAID' ? 'បានបង់រួច ✅' : 'នៅខ្វះ 🔴';
             document.getElementById('receipt-amount').textContent = `$${p.amount.toFixed(2)}`;
             openModal('payment-receipt-modal');
+        }
+
+        function printPaymentReceipt() {
+            const content = document.getElementById('receipt-printable-area').innerHTML;
+            const win = window.open('', '_blank');
+            win.document.write(`
+                <html>
+                <head>
+                    <title>Print Receipt</title>
+                    <script src="https://cdn.tailwindcss.com"><\/script>
+                    <style>
+                        body { font-family: 'Kantumruy Pro', sans-serif; background: #fff; padding: 20px; }
+                        @media print { body { padding: 0; } }
+                    </style>
+                </head>
+                <body onload="window.print(); window.close();">
+                    <div class="max-w-md mx-auto border p-6 rounded-xl">
+                        ${content}
+                    </div>
+                </body>
+                </html>
+            `);
+            win.document.close();
+        }
+
+        function printPaymentsTable() {
+            const payments = getData('sys_payments', []);
+            if (!payments.length) return showToast('គ្មានទិន្នន័យសម្រាប់បោះពុម្ពទេ!', false);
+            
+            const win = window.open('', '_blank');
+            let rowsHtml = '';
+            payments.forEach(p => {
+                rowsHtml += `
+                    <tr>
+                        <td style="padding:8px;border:1px solid #ddd;">${p.date}</td>
+                        <td style="padding:8px;border:1px solid #ddd;">${p.studentId}</td>
+                        <td style="padding:8px;border:1px solid #ddd;">${p.studentName}</td>
+                        <td style="padding:8px;border:1px solid #ddd;">ថ្នាក់ទី ${p.grade}</td>
+                        <td style="padding:8px;border:1px solid #ddd;">${p.term}</td>
+                        <td style="padding:8px;border:1px solid #ddd;">${p.method}</td>
+                        <td style="padding:8px;border:1px solid #ddd;font-weight:bold;">$${p.amount.toFixed(2)}</td>
+                        <td style="padding:8px;border:1px solid #ddd;">${p.status}</td>
+                    </tr>
+                `;
+            });
+
+            win.document.write(`
+                <html>
+                <head>
+                    <title>របាយការណ៍បង់ថ្លៃសិក្សា</title>
+                    <style>
+                        body { font-family: sans-serif; padding: 20px; }
+                        h1 { text-align: center; margin-bottom: 5px; }
+                        p { text-align: center; color: #555; margin-top: 0; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th { background: #f2f2f2; padding: 10px; border: 1px solid #ddd; text-align: left; }
+                    </style>
+                </head>
+                <body onload="window.print(); window.close();">
+                    <h1>វិទ្យាល័យឥស្លាមស្ទឹងត្រែង</h1>
+                    <p>តារាងរបាយការណ៍បង់ថ្លៃសិក្សា (Payments Report)</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>កាលបរិច្ឆេទ</th>
+                                <th>ID សិស្ស</th>
+                                <th>ឈ្មោះសិស្ស</th>
+                                <th>ថ្នាក់</th>
+                                <th>ប្រភេទ</th>
+                                <th>វិធីសាស្ត្រ</th>
+                                <th>ចំនួនប្រាក់</th>
+                                <th>ស្ថានភាព</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rowsHtml}</tbody>
+                    </table>
+                </body>
+                </html>
+            `);
+            win.document.close();
+        }
+
+        function exportPaymentsToExcel() {
+            const payments = getData('sys_payments', []);
+            if (!payments.length) return showToast('គ្មានទិន្នន័យទេ!', false);
+            const ws = XLSX.utils.json_to_sheet(payments);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Payments");
+            XLSX.writeFile(wb, "Payments_Report.xlsx");
         }
 
         function printPaymentReceipt() { window.print(); }
@@ -2001,6 +2220,168 @@
         }
 
         function printReport() { window.print(); }
+
+        function sendReportToTelegram() {
+            const type = document.getElementById('report-type').value;
+            const gradeFilter = document.getElementById('report-grade').value;
+            const startDate = document.getElementById('report-start-date').value;
+            const endDate = document.getElementById('report-end-date').value;
+            const logs = getData('sys_attendance', []);
+
+            const filtered = logs.filter(l => {
+                if (l.type !== type) return false;
+                if (gradeFilter !== 'ALL' && l.grade !== gradeFilter) return false;
+                if (startDate && l.date < startDate) return false;
+                if (endDate && l.date > endDate) return false;
+                return true;
+            });
+
+            if (!filtered.length) {
+                return showToast('គ្មានទិន្នន័យរបាយការណ៍សម្រាប់ផ្ញើទេ!', false);
+            }
+
+            const total = filtered.length;
+            const present = filtered.filter(l => l.status === 'PRESENT').length;
+            const late = filtered.filter(l => l.status === 'LATE').length;
+            const permission = filtered.filter(l => l.status === 'PERMISSION').length;
+            const absent = filtered.filter(l => l.status === 'ABSENT').length;
+
+            const typeTxt = type === 'student' ? '👨‍🎓 សិស្ស' : '👨‍🏫 គ្រូបង្រៀន';
+            const gradeTxt = gradeFilter === 'ALL' ? 'គ្រប់ថ្នាក់ទាំងអស់' : `ថ្នាក់ទី ${gradeFilter}`;
+            const dateRangeTxt = (startDate || endDate) ? `${startDate || '...'} ដល់ ${endDate || '...'}` : 'ទិន្នន័យសរុប';
+
+            let msg = `📊 <b>[របាយការណ៍សង្ខេបវត្តមាន]</b>\n`;
+            msg += `🏫 <b>វិទ្យាល័យឥស្លាមស្ទឹងត្រែង</b>\n`;
+            msg += `---------------------------------\n`;
+            msg += `📋 <b>ប្រភេទ៖</b> ${typeTxt}\n`;
+            msg += `🏫 <b>ថ្នាក់៖</b> ${gradeTxt}\n`;
+            msg += `📅 <b>កំឡុងពេល៖</b> ${dateRangeTxt}\n`;
+            msg += `---------------------------------\n`;
+            msg += `📈 <b>វត្តមានសរុប៖</b> ${total} លើក\n`;
+            msg += `✅ <b>មកទាន់ពេល៖</b> ${present} នាក់\n`;
+            msg += `🟡 <b>មកយឺត៖</b> ${late} នាក់\n`;
+            msg += `🔵 <b>សុំច្បាប់៖</b> ${permission} នាក់\n`;
+            msg += `🔴 <b>អវត្តមាន៖</b> ${absent} នាក់\n`;
+            msg += `---------------------------------\n`;
+            msg += `⏰ <b>កាលបរិច្ឆេទផ្ញើ៖</b> ${new Date().toISOString().split('T')[0]} ${new Date().toTimeString().split(' ')[0].substring(0,5)}`;
+
+            sendTelegramMessage(msg, gradeFilter !== 'ALL' ? gradeFilter : null);
+            showToast('បានផ្ញើរបាយការណ៍ទៅ Telegram ជោគជ័យ!');
+        }
+
+        function sendIndividualReportsToParents() {
+            const type = document.getElementById('report-type').value;
+            const gradeFilter = document.getElementById('report-grade').value;
+            const startDate = document.getElementById('report-start-date').value;
+            const endDate = document.getElementById('report-end-date').value;
+            const logs = getData('sys_attendance', []);
+
+            const filtered = logs.filter(l => {
+                if (l.type !== type) return false;
+                if (gradeFilter !== 'ALL' && l.grade !== gradeFilter) return false;
+                if (startDate && l.date < startDate) return false;
+                if (endDate && l.date > endDate) return false;
+                return true;
+            });
+
+            if (!filtered.length) {
+                return showToast('គ្មានទិន្នន័យសម្រាប់ផ្ញើទៅអាណាព្យាបាលទេ!', false);
+            }
+
+            if (!confirm(`តើអ្នកពិតជាចង់ផ្ញើសារវត្តមានសិស្សចំនួន ${filtered.length} ករណី ទៅកាន់ Telegram អាណាព្យាបាល/ថ្នាក់មែនទេ?`)) return;
+
+            showToast(`កំពុងផ្ញើសារទៅកាន់ Telegram... (${filtered.length} សារ)`);
+
+            let sentCount = 0;
+            filtered.forEach((l, index) => {
+                setTimeout(() => {
+                    const statusBadgeTxt = l.status === 'PRESENT' ? 'មកទាន់ពេល ✅' : (l.status === 'LATE' ? 'មកយឺត 🟡' : (l.status === 'PERMISSION' ? 'សុំច្បាប់ 🔵' : 'អវត្តមាន 🔴'));
+                    
+                    let msg = `🔔 <b>[ដំណឹងវត្តមានសិស្សជូនអាណាព្យាបាល]</b>\n`;
+                    msg += `🏫 <b>វិទ្យាល័យឥស្លាមស្ទឹងត្រែង</b>\n`;
+                    msg += `---------------------------------\n`;
+                    msg += `👤 <b>ឈ្មោះសិស្ស៖</b> ${l.name} (${l.personId})\n`;
+                    msg += `🏫 <b>ថ្នាក់រៀន៖</b> ថ្នាក់ទី ${l.grade}\n`;
+                    msg += `📚 <b>មុខវិជ្ជា/កំណត់ត្រា៖</b> ${l.sub || 'ម៉ោងសិក្សាទូទៅ'}\n`;
+                    if (l.teacher && l.teacher !== '---') {
+                        msg += `👨‍🏫 <b>គ្រូបង្រៀន៖</b> ${l.teacher}\n`;
+                    }
+                    msg += `⏰ <b>ម៉ោង៖</b> ${l.time}\n`;
+                    msg += `📊 <b>ស្ថានភាពវត្តមាន៖</b> ${statusBadgeTxt}\n`;
+                    if (l.note) {
+                        msg += `📝 <b>កំណត់សម្គាល់៖</b> ${l.note}\n`;
+                    }
+                    msg += `---------------------------------\n`;
+                    msg += `📅 <b>កាលបរិច្ឆេទ៖</b> ${l.date}`;
+
+                    sendTelegramMessage(msg, l.grade);
+                    sentCount++;
+                    if (sentCount === filtered.length) {
+                        showToast(`បានផ្ញើសារដំណឹងវត្តមានទៅ Telegram អាណាព្យាបាលចំនួន ${sentCount} សាររួចរាល់!`);
+                    }
+                }, index * 300); // 300ms delay between calls to comply with Telegram API rate limits
+            });
+        }
+
+        function renderClassTelegramInputs() {
+            const container = document.getElementById('class-chatids-container');
+            if (!container) return;
+            const students = getData('sys_students', []);
+            const defaultGrades = ['7A', '7B', '8A', '9A', '10A', '11A', '12A', '12B'];
+            const grades = Array.from(new Set([...defaultGrades, ...students.map(s => s.grade)])).sort();
+            const classTgSettings = getData('sys_class_tg_settings', {});
+            
+            let html = '';
+            grades.forEach(g => {
+                const val = classTgSettings[g] || '';
+                html += `
+                    <div class="flex items-center space-x-2 bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
+                        <span class="text-xs font-bold text-slate-700 w-24">ថ្នាក់ទី ${g}៖</span>
+                        <input type="text" data-class="${g}" class="class-tg-id-input flex-1 border border-slate-300 rounded px-2 py-1 text-xs font-mono" placeholder="Chat ID (ឧ. -100xxx)" value="${val}">
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function saveTelegramSettings() {
+            const botToken = document.getElementById('tg-bot-token')?.value.trim() || '';
+            const chatId = document.getElementById('tg-chat-id')?.value.trim() || '';
+            const enable = document.getElementById('tg-enable')?.checked || false;
+            
+            const classSettings = {};
+            document.querySelectorAll('.class-tg-id-input').forEach(input => {
+                const cls = input.getAttribute('data-class');
+                if (cls) classSettings[cls] = input.value.trim();
+            });
+
+            saveData('sys_tg_config', { botToken, chatId, enable });
+            saveData('sys_class_tg_settings', classSettings);
+            showToast('រក្សាទុកការកំណត់ Telegram ជោគជ័យ!');
+        }
+
+        function sendTelegramMessage(msgText, grade = null) {
+            const config = getData('sys_tg_config', null);
+            if (!config || !config.enable || !config.botToken) return;
+            
+            let targetChatId = config.chatId;
+            if (grade) {
+                const classSettings = getData('sys_class_tg_settings', {});
+                if (classSettings[grade]) targetChatId = classSettings[grade];
+            }
+            if (!targetChatId) return;
+
+            const url = `https://api.telegram.org/bot${config.botToken}/sendMessage`;
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: targetChatId,
+                    text: msgText,
+                    parse_mode: 'HTML'
+                })
+            }).catch(err => console.error("Telegram send error:", err));
+        }
 
         function resetAllDataOfficial() {
             if (!confirm('លុបទិន្នន័យទាំងអស់?')) return;
