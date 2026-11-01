@@ -62,9 +62,26 @@
             setDoc(ref, { matrices: timetableMatrices }).catch((err) => console.error("Timetables Sync error:", err));
         };
 
+        window.syncTelegramSettingsToCloud = function(config, classSettings) {
+            const refConfig = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'telegram_config');
+            const refClasses = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'telegram_classes');
+            setDoc(refConfig, config).catch((err) => console.error("TG Config Sync error:", err));
+            setDoc(refClasses, classSettings).catch((err) => console.error("TG Classes Sync error:", err));
+        };
+
         window.syncCredentialsToCloud = function(creds) {
             const credsRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'credentials');
             setDoc(credsRef, creds).catch((err) => console.error("Creds Sync error:", err));
+        };
+
+        // Single Attendance Log Delete from Cloud
+        window.deleteAttendanceLogFromCloud = async function(logId) {
+            try {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'attendance', String(logId)));
+                console.log("Cloud log deleted successfully:", logId);
+            } catch (err) {
+                console.error("Cloud single delete error:", err);
+            }
         };
 
         window.clearAttendanceLogsFromCloud = async function() {
@@ -76,6 +93,7 @@
                     deletePromises.push(deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'attendance', document.id)));
                 });
                 await Promise.all(deletePromises);
+                console.log("All Cloud logs cleared successfully.");
             } catch (err) {
                 console.error("Cloud clear error:", err);
             }
@@ -123,6 +141,26 @@
                 if (typeof renderTimetable === 'function') renderTimetable();
             }
         }, (error) => console.error("Realtime Timetables Error:", error));
+
+        const tgConfigRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'telegram_config');
+        onSnapshot(tgConfigRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const tgConfig = docSnap.data();
+                localStorage.setItem('sys_tg_config', JSON.stringify(tgConfig));
+                if (document.getElementById('tg-bot-token')) document.getElementById('tg-bot-token').value = tgConfig.botToken || '';
+                if (document.getElementById('tg-chat-id')) document.getElementById('tg-chat-id').value = tgConfig.chatId || '';
+                if (document.getElementById('tg-enable')) document.getElementById('tg-enable').checked = !!tgConfig.enable;
+            }
+        }, (error) => console.error("TG Config Listen Error:", error));
+
+        const tgClassesRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'telegram_classes');
+        onSnapshot(tgClassesRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const classSettings = docSnap.data();
+                localStorage.setItem('sys_class_tg_settings', JSON.stringify(classSettings));
+                if (typeof renderClassTelegramInputs === 'function') renderClassTelegramInputs();
+            }
+        }, (error) => console.error("TG Classes Listen Error:", error));
 
         const credsRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'credentials');
         onSnapshot(credsRef, (docSnap) => {
@@ -361,9 +399,10 @@
                         <h2 class="text-base font-bold text-slate-800 flex items-center">
                             <i class="fas fa-camera text-emerald-600 mr-2"></i>កាមេរ៉ាស្កែន QR Code វត្តមាន
                         </h2>
-                        <select id="scanner-type" class="text-xs border border-slate-300 rounded-lg p-2 focus:ring-emerald-500 font-semibold">
+                        <select id="scanner-type" class="text-xs border border-slate-300 rounded-lg p-2 focus:ring-emerald-500 font-semibold bg-slate-50">
                             <option value="student">👨‍🎓 វត្តមានសិស្ស (Student)</option>
-                            <option value="teacher">👨‍🏫 វត្តមានគ្រូបង្រៀន (Teacher)</option>
+                            <option value="teacher_in">👨‍🏫 គ្រូបង្រៀន - ចូលរៀន (Check-in)</option>
+                            <option value="teacher_out">🚪 គ្រូបង្រៀន - ចេញរៀន (Check-out)</option>
                         </select>
                     </div>
 
@@ -1229,7 +1268,15 @@
         function renderDashboard() {
             const students = getData('sys_students', []);
             const logs = getData('sys_attendance', []);
-            const today = new Date().toISOString().split('T')[0];
+            
+            // Format today's date properly using local timezone
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const today = `${year}-${month}-${day}`;
+
+            // Filter today logs correctly
             const todayLogs = logs.filter(l => l.date === today);
 
             document.getElementById('stat-total-students').textContent = students.length;
@@ -1243,22 +1290,34 @@
             const tbody = document.getElementById('dashboard-recent-logs');
             if (!tbody) return;
             tbody.innerHTML = '';
+
             if (todayLogs.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400">គ្មានកំណត់ត្រាវត្តមានសម្រាប់ថ្ងៃនេះទេ</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400 font-medium">ពុំទាន់មានកំណត់ត្រាវត្តមានសម្រាប់ថ្ងៃនេះនៅឡើយទេ</td></tr>`;
                 return;
             }
+
+            // Display logs sorted from newest to oldest
             todayLogs.slice().reverse().forEach(l => {
-                const badge = l.status === 'PRESENT' ? '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold text-xs">ទាន់ពេល ✅</span>' :
-                              l.status === 'LATE' ? '<span class="px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-bold text-xs">មកយឺត 🟡</span>' :
-                              '<span class="px-2 py-0.5 bg-rose-100 text-rose-800 rounded font-bold text-xs">ច្បាប់/អវត្តមាន 🔴</span>';
+                let badge = '';
+                if (l.type === 'teacher_in') {
+                    badge = '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold text-xs">ចូលរៀន 🟢</span>';
+                } else if (l.type === 'teacher_out') {
+                    badge = `<span class="px-2 py-0.5 bg-slate-200 text-slate-800 rounded font-bold text-xs">ចេញរៀន 🚪 (${l.duration || '---'})</span>`;
+                } else {
+                    badge = l.status === 'PRESENT' ? '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold text-xs">ទាន់ពេល ✅</span>' :
+                            l.status === 'LATE' ? '<span class="px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-bold text-xs">មកយឺត 🟡</span>' :
+                            (l.status === 'PERMISSION' ? '<span class="px-2 py-0.5 bg-blue-100 text-blue-800 rounded font-bold text-xs">សុំច្បាប់ 🔵</span>' :
+                            '<span class="px-2 py-0.5 bg-rose-100 text-rose-800 rounded font-bold text-xs">អវត្តមាន 🔴</span>');
+                }
+
                 tbody.innerHTML += `
                     <tr>
-                        <td class="p-3 font-mono text-xs">${l.time}</td>
-                        <td class="p-3 font-semibold">${l.type === 'student' ? '👨‍🎓 សិស្ស' : '👨‍🏫 គ្រូ'}</td>
+                        <td class="p-3 font-mono text-xs font-bold">${l.time}</td>
+                        <td class="p-3 font-semibold">${l.type === 'student' ? '👨‍🎓 សិស្ស' : (l.type === 'teacher_out' ? '🚪 គ្រូ (ចេញ)' : '👨‍🏫 គ្រូ (ចូល)')}</td>
                         <td class="p-3 font-bold text-slate-800">${l.name} (${l.personId})</td>
                         <td class="p-3">${l.sub || 'ថ្នាក់ទី ' + l.grade}</td>
                         <td class="p-3">${badge}</td>
-                        <td class="p-3 text-xs text-slate-500">${l.note || ''}</td>
+                        <td class="p-3 text-xs text-slate-500">${l.note || '---'}</td>
                     </tr>
                 `;
             });
@@ -1392,11 +1451,8 @@
                 subList.innerHTML = '';
                 subjects.forEach(sub => {
                     subList.innerHTML += `
-                        <li class="flex items-center justify-between p-2 hover:bg-slate-50 rounded-lg">
-                            <div class="flex items-center space-x-2">
-                                <span class="w-3 h-3 rounded-full border" style="background-color: ${sub.color || '#e2e8f0'}"></span>
-                                <span class="font-bold text-slate-800 text-xs">${sub.name}</span>
-                            </div>
+                        <li class="p-2 flex items-center justify-between text-xs font-semibold rounded hover:bg-slate-50">
+                            <span><i class="fas fa-book text-emerald-600 mr-2"></i>${sub.name} (${sub.code})</span>
                             <button onclick="deleteSubject('${sub.code}')" class="admin-only text-rose-500 text-xs"><i class="fas fa-times"></i></button>
                         </li>
                     `;
@@ -1571,40 +1627,6 @@
             showToast('បានលុបចន្លោះម៉ោងជោគជ័យ!');
         }
 
-        function updateCellColor(selectEl) {
-            const val = selectEl.value;
-            const parentDiv = selectEl.closest('div');
-            if (!parentDiv) return;
-            const subjects = getData('sys_subjects', officialSampleSubjects);
-            const subObj = subjects.find(s => s.name === val);
-            parentDiv.style.backgroundColor = subObj && subObj.color ? subObj.color : '#ffffff';
-        }
-
-        function saveTimetableMatrix() {
-            const grade = document.getElementById('schedule-class-select')?.value || '7A';
-            const matrices = getData('sys_timetable_matrices', {});
-            const currentMatrix = {};
-
-            // Loop through all subject & teacher selects in the timetable matrix
-            const subSelects = document.querySelectorAll('.timetable-sub-select');
-            subSelects.forEach(subSel => {
-                const slot = subSel.getAttribute('data-slot');
-                const day = subSel.getAttribute('data-day');
-                const teacherSel = document.querySelector(`.timetable-teacher-select[data-slot="${slot}"][data-day="${day}"]`);
-                
-                const subVal = subSel.value || '';
-                const teacherVal = teacherSel ? teacherSel.value : '';
-                
-                if (subVal || teacherVal) {
-                    currentMatrix[`${slot}_${day}`] = `${subVal}|${teacherVal}`;
-                }
-            });
-
-            matrices[grade] = currentMatrix;
-            saveData('sys_timetable_matrices', matrices);
-            showToast(`បានរក្សាទុកកាលវិភាគថ្នាក់ទី ${grade} ជោគជ័យ!`);
-        }
-
         function applyScheduleTemplate(shift) {
             const grade = document.getElementById('schedule-class-select')?.value || '7A';
             const matrices = getData('sys_timetable_matrices', {});
@@ -1711,11 +1733,13 @@
         }
 
         function processAttendance(scannedId, forcedStatus = null, forcedNote = '') {
-            const type = document.getElementById('scanner-type').value;
+            const scannerType = document.getElementById('scanner-type').value;
             const students = getData('sys_students', []);
             const teachers = getData('sys_teachers', []);
             const targetId = scannedId.trim().toUpperCase();
-            let person = type === 'student' ? students.find(s => s.id.toUpperCase() === targetId) : teachers.find(t => t.id.toUpperCase() === targetId);
+
+            const isTeacher = scannerType.startsWith('teacher');
+            let person = !isTeacher ? students.find(s => s.id.toUpperCase() === targetId) : teachers.find(t => t.id.toUpperCase() === targetId);
 
             if (!person) {
                 document.getElementById('scan-result-card').innerHTML = `<div class="text-rose-500 py-6 font-bold">រកមិនឃើញ ID: ${targetId}</div>`;
@@ -1723,15 +1747,37 @@
             }
 
             const now = new Date();
-            const dateStr = now.toISOString().split('T')[0];
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
             const timeStr = now.toTimeString().split(' ')[0].substring(0,5);
             let status = forcedStatus || 'PRESENT';
+
+            let durationStr = '';
+            const logs = getData('sys_attendance', []);
+
+            // Handle Teacher Check-out duration calculation
+            if (scannerType === 'teacher_out') {
+                const lastInLog = logs.slice().reverse().find(l => l.personId === person.id && l.type === 'teacher_in' && l.date === dateStr);
+                if (lastInLog && lastInLog.time) {
+                    const inTimeParts = lastInLog.time.split(':');
+                    const inMinutes = parseInt(inTimeParts[0], 10) * 60 + parseInt(inTimeParts[1], 10);
+                    const outMinutes = now.getHours() * 60 + now.getMinutes();
+                    const diffMin = Math.max(0, outMinutes - inMinutes);
+                    const hours = Math.floor(diffMin / 60);
+                    const mins = diffMin % 60;
+                    durationStr = `${hours} ម៉ោង ${mins} នាទី`;
+                } else {
+                    durationStr = 'ពុំមានកំណត់ត្រាម៉ោងចូល';
+                }
+            }
 
             let subjectName = person.subject || 'ម៉ោងសិក្សាទូទៅ';
             let teacherName = '---';
 
             // Smart Timetable & Subject Detection based on current time slot
-            if (type === 'student') {
+            if (scannerType === 'student') {
                 const dayIndex = now.getDay();
                 const dayMap = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
                 const dayKey = dayMap[dayIndex];
@@ -1742,7 +1788,6 @@
                     const timeSlots = matrices[`time_slots_${grade}`] || ["07:00 - 08:00", "08:00 - 09:00", "09:00 - 10:00", "10:00 - 11:00"];
                     const currentMatrix = matrices[grade] || {};
 
-                    // Match current scanning time with time slots
                     let matchedSlotIdx = -1;
                     const curTimeVal = parseInt(timeStr.replace(':', ''), 10);
 
@@ -1757,9 +1802,7 @@
                         }
                     });
 
-                    if (matchedSlotIdx === -1 && timeSlots.length > 0) {
-                        matchedSlotIdx = 0; // Default to first slot if outside bounds
-                    }
+                    if (matchedSlotIdx === -1 && timeSlots.length > 0) matchedSlotIdx = 0;
 
                     if (matchedSlotIdx !== -1) {
                         const rawCell = currentMatrix[`${matchedSlotIdx}_${dayKey}`] || '';
@@ -1774,7 +1817,7 @@
 
             const log = {
                 id: Date.now(),
-                type,
+                type: scannerType,
                 personId: person.id,
                 name: person.name,
                 grade: person.grade || '---',
@@ -1783,40 +1826,62 @@
                 date: dateStr,
                 time: timeStr,
                 status,
-                note: forcedNote || (status === 'PRESENT' ? 'មកទាន់ពេល' : 'មកយឺត')
+                duration: durationStr,
+                note: forcedNote || (scannerType === 'teacher_out' ? `ចេញរៀន (${durationStr})` : (status === 'PRESENT' ? 'ចូលរៀន/ទាន់ពេល' : 'មកយឺត'))
             };
 
-            const logs = getData('sys_attendance', []);
             logs.push(log);
             saveData('sys_attendance', logs);
             if (typeof window.syncAttendanceToCloud === 'function') window.syncAttendanceToCloud(log);
 
-            const statusBadgeTxt = status === 'PRESENT' ? 'មកទាន់ពេល ✅' : (status === 'LATE' ? 'មកយឺត 🟡' : (status === 'PERMISSION' ? 'សុំច្បាប់ 🔵' : 'អវត្តមាន 🔴'));
+            // Re-render dashboard immediately after scan
+            renderDashboard();
+
+            let statusBadgeTxt = '';
+            if (scannerType === 'teacher_in') statusBadgeTxt = 'ចូលរៀន (Check-in) 🟢';
+            else if (scannerType === 'teacher_out') statusBadgeTxt = `ចេញរៀន (${durationStr}) 🚪`;
+            else statusBadgeTxt = status === 'PRESENT' ? 'មកទាន់ពេល ✅' : (status === 'LATE' ? 'មកយឺត 🟡' : (status === 'PERMISSION' ? 'សុំច្បាប់ 🔵' : 'អវត្តមាន 🔴'));
 
             document.getElementById('scan-result-card').innerHTML = `
                 <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-center space-y-1">
                     <div class="font-bold text-slate-800 text-base">${person.name}</div>
-                    <div class="text-xs text-emerald-700 font-semibold">${person.id} | ${type === 'student' ? 'ថ្នាក់ទី ' + person.grade : person.subject}</div>
-                    <div class="text-xs text-slate-500 font-medium">📚 មុខវិជ្ជា៖ ${subjectName}</div>
+                    <div class="text-xs text-emerald-700 font-semibold">${person.id} | ${scannerType === 'student' ? 'ថ្នាក់ទី ' + person.grade : person.subject}</div>
+                    ${durationStr ? `<div class="text-xs text-slate-600 font-bold">⏱️ ថិរវេលាបង្រៀន៖ ${durationStr}</div>` : ''}
                     <span class="inline-block mt-2 px-3 py-1 bg-emerald-600 text-white text-xs font-bold rounded-full">${statusBadgeTxt}</span>
                 </div>
             `;
 
             // Build official message template
-            let tgMsg = `🔔 <b>[កត់វត្តមានស្វ័យប្រវត្តិ]</b>\n`;
-            tgMsg += `🏫 <b>វិទ្យាល័យឥស្លាមស្ទឹងត្រែង</b>\n`;
-            tgMsg += `---------------------------------\n`;
-            tgMsg += `👤 <b>ឈ្មោះ៖</b> ${person.name} (${person.id})\n`;
-            tgMsg += `🏫 <b>ថ្នាក់/មុខវិជ្ជា៖</b> ${type === 'student' ? 'ថ្នាក់ទី ' + person.grade : person.subject}\n`;
-            tgMsg += `📚 <b>មុខវិជ្ជាកំពុងរៀន៖</b> ${subjectName}\n`;
-            if (teacherName && teacherName !== '---') {
-                tgMsg += `👨‍🏫 <b>គ្រូបង្រៀន៖</b> ${teacherName}\n`;
+            let tgMsg = '';
+            if (scannerType === 'teacher_in') {
+                tgMsg += `👨‍🏫 <b>[គ្រូបង្រៀន - ចូលរៀន (Check-in)]</b>\n`;
+                tgMsg += `🏫 <b>វិទ្យាល័យឥស្លាមស្ទឹងត្រែង</b>\n`;
+                tgMsg += `---------------------------------\n`;
+                tgMsg += `👤 <b>ឈ្មោះគ្រូ៖</b> ${person.name} (${person.id})\n`;
+                tgMsg += `📖 <b>មុខវិជ្ជា៖</b> ${person.subject}\n`;
+                tgMsg += `⏰ <b>ម៉ោងចូល៖</b> ${timeStr}\n`;
+                tgMsg += `📊 <b>ស្ថានភាព៖</b> ចូលរៀន 🟢\n`;
+            } else if (scannerType === 'teacher_out') {
+                tgMsg += `🚪 <b>[គ្រូបង្រៀន - ចេញរៀន (Check-out)]</b>\n`;
+                tgMsg += `🏫 <b>វិទ្យាល័យឥស្លាមស្ទឹងត្រែង</b>\n`;
+                tgMsg += `---------------------------------\n`;
+                tgMsg += `👤 <b>ឈ្មោះគ្រូ៖</b> ${person.name} (${person.id})\n`;
+                tgMsg += `📖 <b>មុខវិជ្ជា៖</b> ${person.subject}\n`;
+                tgMsg += `⏰ <b>ម៉ោងចេញ៖</b> ${timeStr}\n`;
+                tgMsg += `⏱️ <b>ថិរវេលាបង្រៀនសរុប៖</b> ${durationStr}\n`;
+                tgMsg += `📊 <b>ស្ថានភាព៖</b> ចេញរៀន 🚪\n`;
+            } else {
+                tgMsg += `🔔 <b>[កត់វត្តមានស្វ័យប្រវត្តិ]</b>\n`;
+                tgMsg += `🏫 <b>វិទ្យាល័យឥស្លាមស្ទឹងត្រែង</b>\n`;
+                tgMsg += `---------------------------------\n`;
+                tgMsg += `👤 <b>ឈ្មោះ៖</b> ${person.name} (${person.id})\n`;
+                tgMsg += `🏫 <b>ថ្នាក់/មុខវិជ្ជា៖</b> ថ្នាក់ទី ${person.grade}\n`;
+                tgMsg += `📚 <b>មុខវិជ្ជាកំពុងរៀន៖</b> ${subjectName}\n`;
+                if (teacherName && teacherName !== '---') tgMsg += `👨‍🏫 <b>គ្រូបង្រៀន៖</b> ${teacherName}\n`;
+                tgMsg += `⏰ <b>ម៉ោងស្កែន/កត់៖</b> ${timeStr}\n`;
+                tgMsg += `📊 <b>ស្ថានភាពវត្តមាន៖</b> ${statusBadgeTxt}\n`;
             }
-            tgMsg += `⏰ <b>ម៉ោងស្កែន/កត់៖</b> ${timeStr}\n`;
-            tgMsg += `📊 <b>ស្ថានភាពវត្តមាន៖</b> ${statusBadgeTxt}\n`;
-            if (forcedNote) {
-                tgMsg += `📝 <b>កំណត់សម្គាល់៖</b> ${forcedNote}\n`;
-            }
+            if (forcedNote) tgMsg += `📝 <b>កំណត់សម្គាល់៖</b> ${forcedNote}\n`;
             tgMsg += `---------------------------------\n`;
             tgMsg += `📅 <b>កាលបរិច្ឆេទ៖</b> ${dateStr}`;
 
@@ -1825,11 +1890,22 @@
         }
 
         function clearAttendanceLogsOfficial() {
-            if (!confirm('លុប Logs ទាំងអស់ចេញពី Cloud?')) return;
+            if (!confirm('តើអ្នកពិតជាចង់សម្អាតសកម្មភាពវត្តមានថ្ងៃនេះ និង Logs ទាំងអស់ចេញពីប្រព័ន្ធ និង Cloud ដែរឬទេ?')) return;
+            
+            // 1. Settle local data immediately
             saveData('sys_attendance', []);
-            if (typeof window.clearAttendanceLogsFromCloud === 'function') window.clearAttendanceLogsFromCloud();
-            renderDashboard();
-            showToast('សម្អាត Logs ជោគជ័យ!');
+            
+            // 2. Delete all records permanently from Firebase Cloud Storage
+            if (typeof window.clearAttendanceLogsFromCloud === 'function') {
+                window.clearAttendanceLogsFromCloud().then(() => {
+                    renderDashboard();
+                    if (typeof generateReport === 'function') generateReport();
+                    showToast('បានសម្អាតសកម្មភាពវត្តមានទាំងអស់ចេញពី Cloud រួចរាល់ 100%!');
+                });
+            } else {
+                renderDashboard();
+                showToast('បានសម្អាតសកម្មភាពវត្តមានជោគជ័យ!');
+            }
         }
 
         function exportTodayLogsToExcel() {
@@ -2243,16 +2319,33 @@
                 return;
             }
             filtered.forEach(l => {
+                let statusBadge = '';
+                if (l.type === 'teacher_in') {
+                    statusBadge = '<span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg font-bold text-xs inline-flex items-center"><i class="fas fa-sign-in-alt mr-1 text-emerald-600"></i> ចូលរៀន</span>';
+                } else if (l.type === 'teacher_out') {
+                    statusBadge = `<span class="px-2.5 py-1 bg-slate-200 text-slate-800 rounded-lg font-bold text-xs inline-flex items-center"><i class="fas fa-sign-out-alt mr-1 text-slate-600"></i> ចេញរៀន (${l.duration || '---'})</span>`;
+                } else if (l.status === 'PRESENT') {
+                    statusBadge = '<span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg font-bold text-xs inline-flex items-center"><i class="fas fa-check-circle mr-1 text-emerald-600"></i> មកទាន់ពេល</span>';
+                } else if (l.status === 'LATE') {
+                    statusBadge = '<span class="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-lg font-bold text-xs inline-flex items-center"><i class="fas fa-clock mr-1 text-amber-600"></i> មកយឺត</span>';
+                } else if (l.status === 'PERMISSION') {
+                    statusBadge = '<span class="px-2.5 py-1 bg-blue-100 text-blue-800 rounded-lg font-bold text-xs inline-flex items-center"><i class="fas fa-envelope-open-text mr-1 text-blue-600"></i> សុំច្បាប់</span>';
+                } else if (l.status === 'ABSENT') {
+                    statusBadge = '<span class="px-2.5 py-1 bg-rose-100 text-rose-800 rounded-lg font-bold text-xs inline-flex items-center"><i class="fas fa-times-circle mr-1 text-rose-600"></i> អវត្តមាន</span>';
+                } else {
+                    statusBadge = `<span class="px-2.5 py-1 bg-slate-100 text-slate-800 rounded-lg font-bold text-xs">${l.status}</span>`;
+                }
+
                 tbody.innerHTML += `
                     <tr>
                         <td class="p-3 border font-mono text-xs">${l.date} ${l.time}</td>
-                        <td class="p-3 border font-mono font-bold">${l.personId}</td>
-                        <td class="p-3 border font-bold">${l.name}</td>
-                        <td class="p-3 border">${l.sub || 'ថ្នាក់ទី ' + l.grade}</td>
-                        <td class="p-3 border">${l.status}</td>
-                        <td class="p-3 border text-xs">${l.note || ''}</td>
+                        <td class="p-3 border font-mono font-bold text-slate-700">${l.personId}</td>
+                        <td class="p-3 border font-bold text-slate-800">${l.name}</td>
+                        <td class="p-3 border font-medium">${l.sub || 'ថ្នាក់ទី ' + l.grade}</td>
+                        <td class="p-3 border">${statusBadge}</td>
+                        <td class="p-3 border text-xs text-slate-500">${l.note || '---'}</td>
                         <td class="p-3 border text-center admin-only no-print">
-                            <button onclick="deleteAttendanceLog(${l.id})" class="text-rose-600"><i class="fas fa-trash-alt"></i></button>
+                            <button onclick="deleteAttendanceLog(${l.id})" class="p-1.5 text-rose-600 hover:text-rose-800 transition" title="លុបទិន្នន័យ"><i class="fas fa-trash-alt"></i></button>
                         </td>
                     </tr>
                 `;
@@ -2260,17 +2353,36 @@
         }
 
         function deleteAttendanceLog(id) {
-            let logs = getData('sys_attendance', []).filter(l => l.id !== id);
+            if (!confirm('តើអ្នកពិតជាចង់លុបទិន្នន័យវត្តមាននេះចេញពីប្រព័ន្ធ និង Cloud មែនទេ?')) return;
+            
+            // 1. Remove from Local Storage array immediately
+            let logs = getData('sys_attendance', []).filter(l => String(l.id) !== String(id));
             saveData('sys_attendance', logs);
+            
+            // 2. Delete from Firebase Cloud Database directly
+            if (typeof window.deleteAttendanceLogFromCloud === 'function') {
+                window.deleteAttendanceLogFromCloud(id);
+            }
+            
             generateReport();
             renderDashboard();
+            showToast('បានលុបទិន្នន័យវត្តមានចេញពីប្រព័ន្ធ និង Cloud រួចរាល់!');
         }
 
         function clearFilteredReportLogs() {
-            if (!confirm('លុបរបាយការណ៍ទាំងអស់នេះ?')) return;
+            if (!confirm('តើអ្នកពិតជាចង់លុបទិន្នន័យវត្តមានទាំងអស់ចេញពីប្រព័ន្ធ និង Cloud មែនទេ?')) return;
+            
+            // 1. Clear Local Storage
             saveData('sys_attendance', []);
+            
+            // 2. Clear all logs from Cloud Database
+            if (typeof window.clearAttendanceLogsFromCloud === 'function') {
+                window.clearAttendanceLogsFromCloud();
+            }
+            
             generateReport();
             renderDashboard();
+            showToast('បានសម្អាតទិន្នន័យវត្តមានទាំងអស់ចេញពី Cloud រួចរាល់!');
         }
 
         function exportToExcel() {
@@ -2417,8 +2529,15 @@
                 if (cls) classSettings[cls] = input.value.trim();
             });
 
-            saveData('sys_tg_config', { botToken, chatId, enable });
+            const tgConfig = { botToken, chatId, enable };
+
+            saveData('sys_tg_config', tgConfig);
             saveData('sys_class_tg_settings', classSettings);
+            
+            if (typeof window.syncTelegramSettingsToCloud === 'function') {
+                window.syncTelegramSettingsToCloud(tgConfig, classSettings);
+            }
+            
             showToast('រក្សាទុកការកំណត់ Telegram ជោគជ័យ!');
         }
 
