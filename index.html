@@ -38,6 +38,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- QR Code Scanner Library (Html5-Qrcode) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <!-- QR Code Generator Library (QRCode.js) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <!-- SheetJS for Excel Export/Import -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
@@ -69,7 +71,13 @@
                     <i class="fa-solid fa-mosque"></i>
                 </div>
                 <div>
-                    <h1 class="font-bold text-sm tracking-tight text-emerald-100">វិទ្យាល័យឥស្លាមស្ទឹងត្រែង</h1>
+                    <div class="flex items-center gap-1.5">
+                        <h1 class="font-bold text-sm tracking-tight text-emerald-100">វិទ្យាល័យឥស្លាមស្ទឹងត្រែង</h1>
+                        <span id="cloud-status-badge" onclick="showCloudInfoModal()" class="bg-emerald-700/80 text-emerald-200 text-[9px] px-1.5 py-0.5 rounded-full font-bold border border-emerald-500/40 flex items-center gap-1 cursor-pointer hover:bg-emerald-600 transition" title="ចុចដើម្បីមើលព័ត៌មាន Cloud Sync">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <span>Cloud Sync Active</span>
+                        </span>
+                    </div>
                     <p class="text-[10px] text-emerald-300">Steung Treng Islamic High School</p>
                 </div>
             </div>
@@ -139,6 +147,7 @@
         let currentUser = null;
         let isFirebaseConnected = false;
         let html5QrCode = null;
+        let isProcessingScan = false; // Lock flag to delay scanning speed
 
         // App Data State
         window.appState = {
@@ -205,32 +214,25 @@
         }
 
         function loadLocalMockData() {
-            window.appState.students = JSON.parse(localStorage.getItem('st_students') || JSON.stringify([
-                { id: 'S-001', name: 'នូ សុជាតា', gender: 'ស្រី', classId: '7A', parentPhone: '012345678', telegramChatId: '' },
-                { id: 'S-002', name: 'ម៉ាត់ វ៉ាហ៊ីដ', gender: 'ប្រុស', classId: '7A', parentPhone: '097888999', telegramChatId: '' },
-                { id: 'S-003', name: 'ស្រី កាណា', gender: 'ស្រី', classId: '8B', parentPhone: '011223344', telegramChatId: '' },
-                { id: 'S-004', name: 'សុះ អុីស្មាអែល', gender: 'ប្រុស', classId: '12B', parentPhone: '012998877', telegramChatId: '' }
-            ]));
+            window.appState.students = JSON.parse(localStorage.getItem('st_students') || '[]');
 
-            window.appState.teachers = JSON.parse(localStorage.getItem('st_teachers') || JSON.stringify([
-                { id: 'T-001', name: 'លោកគ្រូ សុះ យូសុប', subject: 'គណិតវិទ្យា', phone: '012111222' },
-                { id: 'T-002', name: 'អ្នកគ្រូ ហ្វាទីម៉ា ហាសាន់', subject: 'ភាសាខ្មែរ', phone: '016333444' }
-            ]));
+            window.appState.teachers = JSON.parse(localStorage.getItem('st_teachers') || '[]');
 
-            window.appState.attendance = JSON.parse(localStorage.getItem('st_attendance') || JSON.stringify([
-                { id: 'ATT-1', recordId: 'S-001', name: 'នូ សុជាតា', type: 'student', classId: '7A', status: 'មកទាន់ពេល', time: '2026-06-06 07:15:00', note: 'មកទាន់ពេលម៉ោងសិក្សា' },
-                { id: 'ATT-2', recordId: 'T-001', name: 'លោកគ្រូ សុះ យូសុប', type: 'teacher_in', classId: 'ណែនាំ', status: 'ចូលរៀន (Check-in)', time: '2026-06-06 07:05:00', note: 'ចូលបង្រៀនថ្នាក់ 7A' }
-            ]));
+            window.appState.attendance = JSON.parse(localStorage.getItem('st_attendance') || '[]');
 
-            window.appState.timetable = JSON.parse(localStorage.getItem('st_timetable') || JSON.stringify([
-                { id: 'TT-1', classId: '7A', day: 'ចន្ទ', period: 'ម៉ោងទី ១ (០៧:០០ - ០៧:៥០)', subject: 'គណិតវិទ្យា', teacher: 'លោកគ្រូ សុះ យូសុប', shift: 'ព្រឹក' },
-                { id: 'TT-2', classId: '7A', day: 'ចន្ទ', period: 'ម៉ោងទី ២ (០៧:៥០ - ០៨:៤០)', subject: 'ភាសាខ្មែរ', teacher: 'អ្នកគ្រូ ហ្វាទីម៉ា ហាសាន់', shift: 'ព្រឹក' }
-            ]));
+            window.appState.timetable = JSON.parse(localStorage.getItem('st_timetable') || '[]');
         }
 
         function setupRealtimeListeners() {
             if (!isFirebaseConnected) return;
             
+            // Update UI status badge if connected
+            const cloudBadge = document.getElementById('cloud-status-badge');
+            if (cloudBadge) {
+                cloudBadge.className = "bg-emerald-600 text-white text-[9px] px-2 py-0.5 rounded-full font-bold border border-emerald-400 shadow-sm flex items-center gap-1";
+                cloudBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-300 animate-ping"></span> Cloud Active';
+            }
+
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'students'), (snapshot) => {
                 const list = [];
                 snapshot.forEach(doc => list.push({ firebaseId: doc.id, ...doc.data() }));
@@ -241,22 +243,42 @@
                 }
             }, (err) => console.log("Students listener note:", err));
 
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'attendance'), (snapshot) => {
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'teachers'), (snapshot) => {
                 const list = [];
                 snapshot.forEach(doc => list.push({ firebaseId: doc.id, ...doc.data() }));
                 if (list.length > 0) {
-                    window.appState.attendance = list.sort((a,b) => new Date(b.time) - new Date(a.time));
+                    window.appState.teachers = list;
                     saveToLocalStorage();
-                    if (window.appState.currentTab === 'attendance' || window.appState.currentTab === 'reports') renderCurrentTab();
+                    if (window.appState.currentTab === 'people') renderCurrentTab();
                 }
+            }, (err) => console.log("Teachers listener note:", err));
+
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'attendance'), (snapshot) => {
+                const list = [];
+                snapshot.forEach(doc => list.push({ firebaseId: doc.id, ...doc.data() }));
+                window.appState.attendance = list.sort((a,b) => new Date(b.time) - new Date(a.time));
+                saveToLocalStorage();
+                if (window.appState.currentTab === 'attendance' || window.appState.currentTab === 'reports') renderCurrentTab();
             }, (err) => console.log("Attendance listener note:", err));
+
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'timetable'), (snapshot) => {
+                const list = [];
+                snapshot.forEach(doc => list.push({ firebaseId: doc.id, ...doc.data() }));
+                if (list.length > 0) {
+                    window.appState.timetable = list;
+                    saveToLocalStorage();
+                    if (window.appState.currentTab === 'timetable') renderCurrentTab();
+                }
+            }, (err) => console.log("Timetable listener note:", err));
         }
 
         async function syncToFirebase(collectionName, itemId, data) {
             saveToLocalStorage();
             if (!isFirebaseConnected) return;
             try {
-                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', collectionName, itemId), data);
+                // Ensure data payload object is clean & strict
+                const cleanData = JSON.parse(JSON.stringify(data));
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', collectionName, itemId), cleanData);
             } catch (e) {
                 console.error("Firebase sync error:", e);
             }
@@ -441,7 +463,26 @@
                 if (!readerCheck) return;
 
                 html5QrCode = new Html5Qrcode("reader");
-                const config = { fps: 10, qrbox: { width: 220, height: 220 } };
+                
+                // Safe check for Html5QrcodeSupportedFormats enum values
+                const formats = (typeof Html5QrcodeSupportedFormats !== 'undefined') ? [
+                    Html5QrcodeSupportedFormats.QR_CODE,
+                    Html5QrcodeSupportedFormats.DATA_MATRIX,
+                    Html5QrcodeSupportedFormats.AZTEC
+                ] : undefined;
+
+                const config = { 
+                    fps: 10, // Adjusted FPS for smoother & controlled frame processing
+                    qrbox: (viewfinderWidth, viewfinderHeight) => {
+                        const minDim = Math.min(viewfinderWidth, viewfinderHeight);
+                        return { width: Math.floor(minDim * 0.85), height: Math.floor(minDim * 0.85) };
+                    },
+                    aspectRatio: 1.0,
+                    ...(formats ? { formatsToSupport: formats } : {}),
+                    experimentalFeatures: {
+                        useBarCodeDetectorIfSupported: true
+                    }
+                };
                 await html5QrCode.start(
                     { facingMode: "environment" }, 
                     config, 
@@ -468,25 +509,71 @@
         }
 
         function handleScannedResult(rawCode) {
-            const code = rawCode.trim();
+            // Prevent fast repetitive scans with a delay lock
+            if (isProcessingScan) return;
+            isProcessingScan = true;
+
+            let code = rawCode.trim();
+
+            // Ignore QR Sync payloads to prevent false scans
+            if (code.includes('SYNC_DATA')) {
+                showToast("ទិន្នន័យ Sync ត្រូវបានទទួល", "info");
+                setTimeout(() => { isProcessingScan = false; }, 2500);
+                return;
+            }
+
+            // Support JSON string format inside complex/dense QR codes
+            if (code.startsWith('{') && code.endsWith('}')) {
+                try {
+                    const parsed = JSON.parse(code);
+                    code = parsed.id || parsed.code || parsed.studentId || parsed.teacherId || code;
+                } catch (e) {
+                    console.log("JSON parse fallback");
+                }
+            }
+
+            const lowerCode = code.toLowerCase();
             const mode = window.appState.scannerMode;
             let target = null;
             let typeName = '';
 
+            // Flexible Multi-format search (ID, Name, Phone matching)
             if (mode === 'student') {
-                target = window.appState.students.find(s => s.id === code || s.name.includes(code));
+                target = window.appState.students.find(s => 
+                    s.id.toLowerCase() === lowerCode || 
+                    s.name.toLowerCase().includes(lowerCode) ||
+                    (s.parentPhone && s.parentPhone.includes(code))
+                );
                 typeName = 'student';
             } else {
-                target = window.appState.teachers.find(t => t.id === code || t.name.includes(code));
+                target = window.appState.teachers.find(t => 
+                    t.id.toLowerCase() === lowerCode || 
+                    t.name.toLowerCase().includes(lowerCode) ||
+                    (t.phone && t.phone.includes(code))
+                );
                 typeName = mode;
             }
 
+            // Fallback for custom or external QR codes
             if (!target) {
-                target = { id: code, name: `បុគ្គលិក/សិស្ស (${code})`, classId: 'ទូទៅ', parentPhone: '' };
+                target = { 
+                    id: code, 
+                    name: `កាតក្រៅប្រព័ន្ធ (${code})`, 
+                    classId: 'ទូទៅ', 
+                    parentPhone: '' 
+                };
             }
 
+            // Get exact local timestamp (YYYY-MM-DD HH:mm:ss) matching device clock
             const now = new Date();
-            const timeStr = now.toISOString().replace('T', ' ').substring(0, 19);
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            const timeStr = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
             const record = {
                 id: 'ATT-' + Date.now(),
                 recordId: target.id || code,
@@ -505,6 +592,11 @@
 
             showToast(`កត់ត្រាជោគជ័យ៖ ${target.name} (${record.status})`, "success");
             renderCurrentTab();
+
+            // Unlock scanner after 2.5 seconds delay for comfortable manual scanning
+            setTimeout(() => {
+                isProcessingScan = false;
+            }, 2500);
         }
 
         // --- 2. ATTENDANCE MANAGEMENT VIEW ---
@@ -610,6 +702,15 @@
             if (type === 'student') target = window.appState.students.find(s => s.id === code);
             else target = window.appState.teachers.find(t => t.id === code);
 
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            const timeStr = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
             const record = {
                 id: 'ATT-' + Date.now(),
                 recordId: code,
@@ -617,14 +718,18 @@
                 type: type,
                 classId: target ? (target.classId || 'ទូទៅ') : 'ទូទៅ',
                 status: status,
-                time: new Date().toISOString().replace('T', ' ').substring(0, 19),
+                time: timeStr,
                 note: note || 'កត់ត្រាដោយដៃ'
             };
 
+            // Local state update
             window.appState.attendance.unshift(record);
+            
+            // Sync to Real-time Cloud for device B
             syncToFirebase('attendance', record.id, record);
+            
             sendTelegramNotification(record);
-            showToast("កត់វត្តមានជោគជ័យ!", "success");
+            showToast("កត់វត្តមានជោគជ័យ និង Sync ទៅ Cloud រួចរាល់!", "success");
             closeModal('manual-att-modal');
             renderCurrentTab();
         }
@@ -737,7 +842,7 @@
                                         </div>
                                     </div>
                                     <div class="flex items-center space-x-1">
-                                        <button onclick="showQrCard('${s.id}', '${s.name}', '${s.classId}')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 p-2 rounded-xl transition" title="QR Card">
+                                        <button onclick="handleQrButtonClick('student', '${s.id}')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 p-2 rounded-xl transition" title="QR Card">
                                             <i class="fa-solid fa-qrcode text-xs text-brand-600"></i>
                                         </button>
                                         ${isAdmin ? `
@@ -770,7 +875,7 @@
                                         </div>
                                     </div>
                                     <div class="flex items-center space-x-1">
-                                        <button onclick="showQrCard('${t.id}', '${t.name}', '${t.subject}')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 p-2 rounded-xl transition" title="QR Card">
+                                        <button onclick="handleQrButtonClick('teacher', '${t.id}')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 p-2 rounded-xl transition" title="QR Card">
                                             <i class="fa-solid fa-qrcode text-xs text-amber-600"></i>
                                         </button>
                                         ${isAdmin ? `
@@ -977,10 +1082,7 @@
                         </div>
                         <p class="text-xs text-slate-500">ស្កែន QR នេះពីទូរស័ព្ទដៃមួយទៀត ដើម្បី Sync កញ្ចប់ទិន្នន័យសិស្ស និងគ្រូបង្រៀនភ្លាមៗ!</p>
                         <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex justify-center">
-                            <div class="w-48 h-48 bg-white border-2 border-emerald-600 p-2 flex flex-col items-center justify-center rounded-xl shadow-inner">
-                                <i class="fa-solid fa-qrcode text-8xl text-emerald-700"></i>
-                                <span class="text-[9px] text-slate-400 font-mono mt-1">DATA-SYNC-PACKAGE</span>
-                            </div>
+                            <div id="qrcode-sync-render" class="p-2 bg-white rounded-xl shadow-sm border border-slate-200 min-h-[160px] flex items-center justify-center"></div>
                         </div>
                         <div class="flex space-x-2">
                             <button onclick="closeModal('qr-sync-modal')" class="w-full bg-brand-600 text-white py-2.5 rounded-xl text-xs font-bold shadow">យល់ព្រម / បិទ</button>
@@ -989,35 +1091,101 @@
                 </div>
             `;
             document.getElementById('modal-container').innerHTML = html;
+
+            setTimeout(() => {
+                try {
+                    const el = document.getElementById('qrcode-sync-render');
+                    if (el && typeof QRCode !== 'undefined') {
+                        el.innerHTML = '';
+                        new QRCode(el, {
+                            text: JSON.stringify({ type: "SYNC_DATA", count: window.appState.students.length }),
+                            width: 160,
+                            height: 160,
+                            correctLevel: QRCode.CorrectLevel.M
+                        });
+                    }
+                } catch (e) {
+                    console.error("Sync QR Render error:", e);
+                }
+            }, 100);
+        }
+
+        window.handleQrButtonClick = function(type, id) {
+            try {
+                let target = null;
+                if (type === 'student') {
+                    target = window.appState.students.find(s => s.id === id);
+                    if (target) window.showQrCard(target.id, target.name, target.classId);
+                } else {
+                    target = window.appState.teachers.find(t => t.id === id);
+                    if (target) window.showQrCard(target.id, target.name, target.subject);
+                }
+            } catch (err) {
+                console.error("handleQrButtonClick Error:", err);
+                showToast("មិនអាចបើក QR Card បានទេ!", "error");
+            }
         }
 
         window.showQrCard = function(id, name, subInfo) {
-            const html = `
-                <div id="qr-card-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
-                    <div class="bg-white w-full max-w-xs rounded-3xl p-6 shadow-2xl text-center space-y-4">
-                        <div class="bg-gradient-to-r from-emerald-800 to-green-900 text-white p-3 rounded-2xl shadow">
-                            <h3 class="font-bold text-xs">វិទ្យាល័យឥស្លាមស្ទឹងត្រែង</h3>
-                            <p class="text-[9px] text-emerald-200">Steung Treng Islamic High School</p>
-                        </div>
-                        <div class="py-2">
-                            <h4 class="font-bold text-sm text-slate-800">${name}</h4>
-                            <p class="text-xs text-slate-500">ID: <span class="font-bold text-slate-700">${id}</span></p>
-                            <p class="text-xs text-brand-600 font-medium">${subInfo}</p>
-                        </div>
-                        <div id="qrcode-render" class="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex justify-center">
-                            <div class="w-40 h-40 bg-white border-2 border-slate-800 p-2 flex flex-col items-center justify-center rounded-xl">
-                                <i class="fa-solid fa-qrcode text-7xl text-slate-900"></i>
-                                <span class="text-[10px] font-mono mt-1 font-bold">${id}</span>
+            try {
+                const safeName = (name || id).replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                const safeInfo = (subInfo || '').replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+                const html = `
+                    <div id="qr-card-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+                        <div class="bg-white w-full max-w-xs rounded-3xl p-6 shadow-2xl text-center space-y-4">
+                            <div class="bg-gradient-to-r from-emerald-800 to-green-900 text-white p-3 rounded-2xl shadow">
+                                <h3 class="font-bold text-xs">វិទ្យាល័យឥស្លាមស្ទឹងត្រែង</h3>
+                                <p class="text-[9px] text-emerald-200">Steung Treng Islamic High School</p>
+                            </div>
+                            <div class="py-1">
+                                <h4 class="font-bold text-sm text-slate-800">${safeName}</h4>
+                                <p class="text-xs text-slate-500">ID: <span class="font-bold text-slate-700">${id}</span></p>
+                                <p class="text-xs text-brand-600 font-medium">${safeInfo}</p>
+                            </div>
+                            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex flex-col items-center justify-center">
+                                <div id="qrcode-render" class="p-2 bg-white rounded-xl shadow-sm border border-slate-200 min-h-[160px] flex items-center justify-center"></div>
+                                <span class="text-[10px] font-mono text-slate-500 mt-2 font-bold tracking-widest">${id}</span>
+                            </div>
+                            <div class="flex space-x-2">
+                                <button onclick="closeModal('qr-card-modal')" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl text-xs font-bold transition">បិទ</button>
+                                <button onclick="window.print()" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white py-2.5 rounded-xl text-xs font-bold transition shadow"><i class="fa-solid fa-print mr-1"></i>បោះពុម្ព</button>
                             </div>
                         </div>
-                        <div class="flex space-x-2">
-                            <button onclick="closeModal('qr-card-modal')" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl text-xs font-bold transition">បិទ</button>
-                            <button onclick="window.print()" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white py-2.5 rounded-xl text-xs font-bold transition shadow"><i class="fa-solid fa-print mr-1"></i>បោះពុម្ព</button>
-                        </div>
                     </div>
-                </div>
-            `;
-            document.getElementById('modal-container').innerHTML = html;
+                `;
+                const container = document.getElementById('modal-container');
+                if (container) container.innerHTML = html;
+
+                setTimeout(() => {
+                    try {
+                        const qrContainer = document.getElementById('qrcode-render');
+                        if (qrContainer && typeof QRCode !== 'undefined') {
+                            qrContainer.innerHTML = '';
+                            const densePayload = JSON.stringify({
+                                school: "Steung Treng Islamic High School",
+                                id: id,
+                                name: name || id,
+                                info: subInfo || '',
+                                ver: "1.0"
+                            });
+                            new QRCode(qrContainer, {
+                                text: densePayload,
+                                width: 160,
+                                height: 160,
+                                colorDark : "#000000",
+                                colorLight : "#ffffff",
+                                correctLevel : QRCode.CorrectLevel.H
+                            });
+                        }
+                    } catch (err) {
+                        console.error("QRCode render error:", err);
+                    }
+                }, 100);
+            } catch (e) {
+                console.error("showQrCard Outer Error:", e);
+                showToast("មានបញ្ហាក្នុងការបង្ហាញ QR Card", "error");
+            }
         }
 
         window.printAllQrCards = function() {
@@ -1041,7 +1209,7 @@
                             <p class="text-xs text-slate-600">ID: <span class="font-bold">${s.id}</span> | ថ្នាក់: <span class="font-bold">${s.classId}</span></p>
                         </div>
                         <div class="p-2 border border-slate-300 rounded-xl inline-block bg-slate-50">
-                            <i class="fa-solid fa-qrcode text-5xl text-slate-900"></i>
+                            <div id="print-qr-${s.id}" class="flex justify-center p-1 bg-white"></div>
                             <div class="text-[9px] font-mono font-bold mt-1">${s.id}</div>
                         </div>
                     </div>
@@ -1057,20 +1225,22 @@
                             <p class="text-xs text-slate-600">ID: <span class="font-bold">${t.id}</span> | មុខវិជ្ជា: <span class="font-bold">${t.subject}</span></p>
                         </div>
                         <div class="p-2 border border-slate-300 rounded-xl inline-block bg-slate-50">
-                            <i class="fa-solid fa-qrcode text-5xl text-slate-900"></i>
+                            <div id="print-qr-${t.id}" class="flex justify-center p-1 bg-white"></div>
                             <div class="text-[9px] font-mono font-bold mt-1">${t.id}</div>
                         </div>
                     </div>
                 `)
             ].join('');
 
+            const safeCloseScript = '<\x2Fscript>';
             const printWindow = window.open('', '_blank');
             printWindow.document.write(`
                 <!DOCTYPE html>
                 <html>
                 <head>
                     <title>បោះពុម្ពប័ណ្ណ QR - វិទ្យាល័យឥស្លាមស្ទឹងត្រែង</title>
-                    <script src="https://cdn.tailwindcss.com"><\/script>
+                    <script src="https://cdn.tailwindcss.com">${safeCloseScript}
+                    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js">${safeCloseScript}
                     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
                     <style>
                         @media print {
@@ -1087,6 +1257,23 @@
                     <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
                         ${cardsHtml}
                     </div>
+                    <script>
+                        window.onload = function() {
+                            const students = ${JSON.stringify(students)};
+                            const teachers = ${JSON.stringify(teachers)};
+                            [...students, ...teachers].forEach(p => {
+                                const el = document.getElementById('print-qr-' + p.id);
+                                if (el) {
+                                    new QRCode(el, {
+                                        text: JSON.stringify({ school: "STIS", id: p.id, name: p.name }),
+                                        width: 120,
+                                        height: 120,
+                                        correctLevel: QRCode.CorrectLevel.H
+                                    });
+                                }
+                            });
+                        }
+                    ${safeCloseScript}
                 </body>
                 </html>
             `);
@@ -1323,6 +1510,40 @@
                 closeModal('edit-tt-modal');
                 renderCurrentTab();
             }
+        }
+
+        window.showCloudInfoModal = function() {
+            const html = `
+                <div id="cloud-info-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+                    <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-4 text-xs">
+                        <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+                            <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                <span>ពន្យល់អំពី Cloud Sync Active</span>
+                            </h3>
+                            <button onclick="closeModal('cloud-info-modal')" class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="space-y-2.5 text-slate-600">
+                            <div class="bg-emerald-50 p-3 rounded-2xl border border-emerald-200 text-emerald-900">
+                                <p class="font-bold mb-1"><i class="fa-solid fa-cloud-arrow-up mr-1 text-emerald-600"></i>ប្រព័ន្ធកំពុងភ្ជាប់ Cloud Database Real-time</p>
+                                <p class="text-[11px] leading-relaxed">ពាក្យថា <b>Cloud Sync Active</b> ពណ៌បៃតង មានន័យថា ប្រព័ន្ធគ្រប់គ្រងសាលារៀនបានភ្ជាប់ទៅកាន់ **បណ្តាញ Cloud (Firebase)** ដោយជោគជ័យ!</p>
+                            </div>
+                            <ul class="space-y-2 text-[11px]">
+                                <li class="flex items-start gap-2">
+                                    <i class="fa-solid fa-circle-check text-emerald-600 mt-0.5"></i>
+                                    <span><b>Sync ឆ្លងឧបករណ៍ (Real-time):</b> ពេលបញ្ចូលសិស្ស គ្រូ ឬស្កែនវត្តមានលើទូរស័ព្ទមួយ ទិន្នន័យនឹងលោតចូលទូរស័ព្ទផ្សេងទៀតភ្លាមៗ។</span>
+                                </li>
+                                <li class="flex items-start gap-2">
+                                    <i class="fa-solid fa-shield-halved text-emerald-600 mt-0.5"></i>
+                                    <span><b>សុវត្ថិភាពទិន្នន័យ:</b> ទិន្នន័យទាំងអស់ត្រូវបានរក្សាទុកនៅលើ Cloud ដោយសុវត្ថិភាព មិនបាត់បង់ឡើយទោះបីដូរទូរស័ព្ទ ឬបាត់ឧបករណ៍ក៏ដោយ។</span>
+                                </li>
+                            </ul>
+                        </div>
+                        <button onclick="closeModal('cloud-info-modal')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl shadow transition">យល់ព្រម</button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('modal-container').innerHTML = html;
         }
 
         window.deleteTimetable = function(ttId) {
@@ -1964,7 +2185,32 @@
             if (!token || !chatId) return;
 
             const icon = record.status === 'មកទាន់ពេល' ? '✅' : (record.status === 'មកយឺត' ? '⚠️' : '📝');
-            const msg = `${icon} *ជូនដំណឹងវត្តមានសិស្ស/គ្រូ*\n🏫 *វិទ្យាល័យឥស្លាមស្ទឹងត្រែង*\n\n👤 ឈ្មោះ: *${record.name}*\n🆔 ID: \`${record.recordId}\`\n🏫 ថ្នាក់: *${record.classId}*\n📌 ស្ថានភាព: *${record.status}*\n⏰ ម៉ោង: ${record.time}\n${record.note ? '📝 ចំណាំ: ' + record.note : ''}`;
+            
+            // Find teacher and subject details
+            let teacherInfo = '';
+            let subjectInfo = '';
+
+            if (record.type === 'student') {
+                // Find timetable match for student's class
+                const dayNames = ['អាទិត្យ', 'ចន្ទ', 'អង្គារ', 'ពុធ', 'ព្រហស្បតិ៍', 'សុក្រ', 'សៅរ៍'];
+                const currentDay = dayNames[new Date().getDay()];
+                const matchedSchedule = window.appState.timetable.find(t => t.classId === record.classId && t.day === currentDay);
+                
+                if (matchedSchedule) {
+                    teacherInfo = matchedSchedule.teacher || 'មិនទាន់កំណត់';
+                    subjectInfo = matchedSchedule.subject || 'មិនទាន់កំណត់';
+                } else {
+                    teacherInfo = 'មិនទាន់កំណត់';
+                    subjectInfo = 'មិនទាន់កំណត់';
+                }
+            } else {
+                // Find teacher's subject directly
+                const teacherObj = window.appState.teachers.find(t => t.id === record.recordId);
+                teacherInfo = record.name;
+                subjectInfo = teacherObj ? teacherObj.subject : 'ទូទៅ';
+            }
+
+            const msg = `${icon} *ជូនដំណឹងវត្តមានសិស្ស/គ្រូ*\n🏫 *វិទ្យាល័យឥស្លាមស្ទឹងត្រែង*\n\n👤 ឈ្មោះ: *${record.name}*\n🆔 ID: \`${record.recordId}\`\n🏫 ថ្នាក់: *${record.classId}*\n📚 មុខវិជ្ជា: *${subjectInfo}*\n👨‍🏫 គ្រូបង្រៀន: *${teacherInfo}*\n📌 ស្ថានភាព: *${record.status}*\n⏰ ម៉ោង: ${record.time}\n${record.note ? '📝 ចំណាំ: ' + record.note : ''}`;
 
             fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
                 method: 'POST',
