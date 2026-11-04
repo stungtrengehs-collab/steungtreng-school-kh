@@ -73,10 +73,10 @@
                 <div>
                     <div class="flex items-center gap-1.5">
                         <h1 class="font-bold text-sm tracking-tight text-emerald-100">វិទ្យាល័យឥស្លាមស្ទឹងត្រែង</h1>
-                        <span id="cloud-status-badge" onclick="showCloudInfoModal()" class="bg-emerald-700/80 text-emerald-200 text-[9px] px-1.5 py-0.5 rounded-full font-bold border border-emerald-500/40 flex items-center gap-1 cursor-pointer hover:bg-emerald-600 transition" title="ចុចដើម្បីមើលព័ត៌មាន Cloud Sync">
-                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                            <span>Cloud Sync Active</span>
-                        </span>
+                        <button onclick="forceCloudSyncAllData()" class="bg-emerald-700/80 hover:bg-emerald-600 text-emerald-100 text-[9px] px-2 py-0.5 rounded-full font-bold border border-emerald-400 flex items-center gap-1 shadow-sm transition active:scale-95" title="ចុចត្រង់នេះដើម្បីបង្ខំឱ្យ Sync ទិន្នន័យពី Cloud ភ្លាមៗ">
+                            <i class="fa-solid fa-rotate text-[10px] animate-spin" id="sync-spin-icon" style="animation-duration: 3s;"></i>
+                            <span id="cloud-status-badge-text">Sync Cloud ភ្លាមៗ</span>
+                        </button>
                     </div>
                     <p class="text-[10px] text-emerald-300">Steung Treng Islamic High School</p>
                 </div>
@@ -136,62 +136,56 @@
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, getDocs, onSnapshot, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Global Firebase configs - Hardcoded explicitly for Real-time Cloud Synchronization
+        // Global State Initialization Guard ( Fix Runtime Crash)
+        window.appState = {
+            currentTab: 'scanner',
+            role: 'Admin',
+            scannerMode: 'student',
+            isCameraActive: true,
+            selectedClassFilter: '7A',
+            selectedReportClassFilter: 'ALL',
+            adminPin: localStorage.getItem('st_admin_pin') || '1234',
+            classes: JSON.parse(localStorage.getItem('st_classes') || '["7A", "7B", "8A", "8B", "9A", "9B", "10A", "11A", "12A"]'),
+            students: JSON.parse(localStorage.getItem('st_students') || '[]'),
+            teachers: JSON.parse(localStorage.getItem('st_teachers') || '[]'),
+            attendance: JSON.parse(localStorage.getItem('st_attendance') || '[]'),
+            timetable: JSON.parse(localStorage.getItem('st_timetable') || '[]'),
+            telegramConfig: {
+                botToken: localStorage.getItem('st_bot_token') || '',
+                defaultChatId: localStorage.getItem('st_chat_id') || '',
+                classChatIds: JSON.parse(localStorage.getItem('st_class_chat_ids') || '{}'),
+                autoSendOnScan: localStorage.getItem('st_auto_tg_send') !== 'false'
+            }
+        };
+
+        // Global Firebase configs
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'steung-treng-islamic-school-v1';
         
-        // ឈ្មោះ និង Configuration របស់ Cloud Database (Firebase)
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "AIzaSySteungTrengIslamicSchoolKey2026",
-            authDomain: "steung-treng-islamic.firebaseapp.com",
-            projectId: "steung-treng-islamic",
-            storageBucket: "steung-treng-islamic.appspot.com",
-            messagingSenderId: "102938475665",
-            appId: "1:102938475665:web:a1b2c3d4e5f6g7h8i9j0"
+        // 🔗 Firebase Configuration Credential (Project: hanastungtreng1111)
+        const firebaseConfig = {
+            apiKey: "AIzaSyAAQJ3bGUB_XR6Z4hSsKV_XLfYh8-tl15c",
+            authDomain: "hanastungtreng1111.firebaseapp.com",
+            projectId: "hanastungtreng1111",
+            storageBucket: "hanastungtreng1111.firebasestorage.app",
+            messagingSenderId: "63757898367",
+            appId: "1:63757898367:web:7d9054076c94cad24ce54a",
+            measurementId: "G-HZ1MQS4ZLF"
         };
 
         let app, db, auth;
         let currentUser = null;
         let isFirebaseConnected = false;
         let html5QrCode = null;
-        let isProcessingScan = false; // Lock flag to delay scanning speed
+        let isProcessingScan = false;
 
-        // App Data State
-        window.appState = {
-            currentTab: 'scanner',
-            role: 'Admin', // Admin or Teacher
-            selectedClassFilter: '7A',
-            // Added customizable classes array
-            classes: JSON.parse(localStorage.getItem('st_classes') || JSON.stringify(['7A', '7B', '8A', '8B', '9A', '9B', '10A', '10B', '11A', '11B', '12A', '12B'])),
-            telegramConfig: {
-                botToken: localStorage.getItem('st_bot_token') || '',
-                defaultChatId: localStorage.getItem('st_chat_id') || '',
-                classChatIds: JSON.parse(localStorage.getItem('st_class_chat_ids') || '{}'),
-                autoSendOnScan: localStorage.getItem('st_auto_tg_send') !== 'false' // default true
-            },
-            adminPin: localStorage.getItem('st_admin_pin') || '1234', // Default PIN for admin actions
-            students: [],
-            teachers: [],
-            attendance: [],
-            timetable: [],
-            scannerMode: 'student',
-            isCameraActive: true
-        };
-
-        // Initialize Firebase & Local Sample Data
+        // Initialize Firebase SDKs & Auth Engine
         async function initApp() {
-            // Load Telegram configs securely from localStorage on launch
-            window.appState.telegramConfig = {
-                botToken: localStorage.getItem('st_bot_token') || '',
-                defaultChatId: localStorage.getItem('st_chat_id') || '',
-                classChatIds: JSON.parse(localStorage.getItem('st_class_chat_ids') || '{}'),
-                autoSendOnScan: localStorage.getItem('st_auto_tg_send') !== 'false'
-            };
-
             try {
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
 
+                // Authenticate
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
@@ -201,19 +195,17 @@
                 currentUser = auth.currentUser;
                 if (currentUser) {
                     isFirebaseConnected = true;
-                    console.log("Firebase connected successfully. UID:", currentUser.uid);
+                    console.log("🔥 Firebase initialized & Authenticated successfully!");
                     setupRealtimeListeners();
+                    // Initial fetch from cloud immediately
+                    await window.forceCloudSyncAllData();
                 }
             } catch (e) {
-                console.warn("Firebase offline or running in mock mode:", e);
+                console.warn("⚠️ Firebase connection fallback active:", e);
                 loadLocalMockData();
             }
 
-            // If empty after brief wait or offline, load default data
             setTimeout(() => {
-                if (window.appState.students.length === 0) {
-                    loadLocalMockData();
-                }
                 renderCurrentTab();
                 updateNavActiveState();
             }, 300);
@@ -221,25 +213,27 @@
 
         function loadLocalMockData() {
             window.appState.students = JSON.parse(localStorage.getItem('st_students') || '[]');
-
             window.appState.teachers = JSON.parse(localStorage.getItem('st_teachers') || '[]');
-
             window.appState.attendance = JSON.parse(localStorage.getItem('st_attendance') || '[]');
-
             window.appState.timetable = JSON.parse(localStorage.getItem('st_timetable') || '[]');
         }
 
         function setupRealtimeListeners() {
             if (!isFirebaseConnected) return;
-            
-            // Update UI status badge if connected
-            const cloudBadge = document.getElementById('cloud-status-badge');
-            if (cloudBadge) {
-                cloudBadge.className = "bg-emerald-600 text-white text-[9px] px-2 py-0.5 rounded-full font-bold border border-emerald-400 shadow-sm flex items-center gap-1";
-                cloudBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-300 animate-ping"></span> Cloud Active';
-            }
 
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'students'), (snapshot) => {
+            const getColRef = (col) => collection(db, 'artifacts', appId, 'public', 'data', col);
+
+            onSnapshot(getColRef('attendance'), (snapshot) => {
+                const list = [];
+                snapshot.forEach(doc => list.push({ firebaseId: doc.id, ...doc.data() }));
+                if (list.length > 0) {
+                    window.appState.attendance = list.sort((a,b) => new Date(b.time) - new Date(a.time));
+                    saveToLocalStorage();
+                    if (window.appState.currentTab === 'attendance' || window.appState.currentTab === 'reports') renderCurrentTab();
+                }
+            }, (err) => console.log("Attendance snapshot note:", err));
+
+            onSnapshot(getColRef('students'), (snapshot) => {
                 const list = [];
                 snapshot.forEach(doc => list.push({ firebaseId: doc.id, ...doc.data() }));
                 if (list.length > 0) {
@@ -247,9 +241,9 @@
                     saveToLocalStorage();
                     if (window.appState.currentTab === 'people') renderCurrentTab();
                 }
-            }, (err) => console.log("Students listener note:", err));
+            }, (err) => console.log("Students snapshot note:", err));
 
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'teachers'), (snapshot) => {
+            onSnapshot(getColRef('teachers'), (snapshot) => {
                 const list = [];
                 snapshot.forEach(doc => list.push({ firebaseId: doc.id, ...doc.data() }));
                 if (list.length > 0) {
@@ -257,34 +251,60 @@
                     saveToLocalStorage();
                     if (window.appState.currentTab === 'people') renderCurrentTab();
                 }
-            }, (err) => console.log("Teachers listener note:", err));
+            }, (err) => console.log("Teachers snapshot note:", err));
+        }
 
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'attendance'), (snapshot) => {
-                const list = [];
-                snapshot.forEach(doc => list.push({ firebaseId: doc.id, ...doc.data() }));
-                window.appState.attendance = list.sort((a,b) => new Date(b.time) - new Date(a.time));
-                saveToLocalStorage();
-                if (window.appState.currentTab === 'attendance' || window.appState.currentTab === 'reports') renderCurrentTab();
-            }, (err) => console.log("Attendance listener note:", err));
+        // Global manual force sync function from cloud database
+        window.forceCloudSyncAllData = async function() {
+            if (!isFirebaseConnected) {
+                showToast("ប្រព័ន្ធមិនទាន់ភ្ជាប់ Cloud! សូមពិនិត្យអ៊ីនធឺណិត", "error");
+                return;
+            }
+            const spinIcon = document.getElementById('sync-spin-icon');
+            if (spinIcon) spinIcon.classList.add('fa-spin');
 
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'timetable'), (snapshot) => {
-                const list = [];
-                snapshot.forEach(doc => list.push({ firebaseId: doc.id, ...doc.data() }));
-                if (list.length > 0) {
-                    window.appState.timetable = list;
-                    saveToLocalStorage();
-                    if (window.appState.currentTab === 'timetable') renderCurrentTab();
+            try {
+                const getColRef = (col) => collection(db, 'artifacts', appId, 'public', 'data', col);
+                
+                // Fetch attendance
+                const attSnap = await getDocs(getColRef('attendance'));
+                const attList = [];
+                attSnap.forEach(doc => attList.push({ firebaseId: doc.id, ...doc.data() }));
+                if (attList.length > 0) {
+                    window.appState.attendance = attList.sort((a,b) => new Date(b.time) - new Date(a.time));
                 }
-            }, (err) => console.log("Timetable listener note:", err));
+
+                // Fetch students
+                const stuSnap = await getDocs(getColRef('students'));
+                const stuList = [];
+                stuSnap.forEach(doc => stuList.push({ firebaseId: doc.id, ...doc.data() }));
+                if (stuList.length > 0) window.appState.students = stuList;
+
+                // Fetch teachers
+                const teaSnap = await getDocs(getColRef('teachers'));
+                const teaList = [];
+                teaSnap.forEach(doc => teaList.push({ firebaseId: doc.id, ...doc.data() }));
+                if (teaList.length > 0) window.appState.teachers = teaList;
+
+                saveToLocalStorage();
+                renderCurrentTab();
+                showToast("ទាញយកទិន្នន័យចុងក្រោយពី Cloud ជោគជ័យ!", "success");
+            } catch (e) {
+                console.error("Force sync error:", e);
+                showToast("មានបញ្ហាក្នុងការ Sync ពី Cloud", "error");
+            } finally {
+                if (spinIcon) spinIcon.classList.remove('fa-spin');
+            }
         }
 
         async function syncToFirebase(collectionName, itemId, data) {
             saveToLocalStorage();
             if (!isFirebaseConnected) return;
             try {
-                // Ensure data payload object is clean & strict
                 const cleanData = JSON.parse(JSON.stringify(data));
-                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', collectionName, itemId), cleanData);
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, String(itemId));
+                await setDoc(docRef, cleanData, { merge: true });
+                console.log(`✅ Push Cloud Done [${collectionName}]:`, itemId);
             } catch (e) {
                 console.error("Firebase sync error:", e);
             }
@@ -294,7 +314,9 @@
             saveToLocalStorage();
             if (!isFirebaseConnected) return;
             try {
-                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', collectionName, itemId));
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, String(itemId));
+                await deleteDoc(docRef);
+                console.log(`🗑️ Cloud Deleted [${collectionName}]:`, itemId);
             } catch (e) {
                 console.error("Firebase delete error:", e);
             }
