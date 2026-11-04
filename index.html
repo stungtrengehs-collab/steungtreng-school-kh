@@ -150,6 +150,7 @@
             teachers: JSON.parse(localStorage.getItem('st_teachers') || '[]'),
             attendance: JSON.parse(localStorage.getItem('st_attendance') || '[]'),
             timetable: JSON.parse(localStorage.getItem('st_timetable') || '[]'),
+            googleSheetUrl: localStorage.getItem('st_gsheet_url') || '',
             telegramConfig: {
                 botToken: localStorage.getItem('st_bot_token') || '',
                 defaultChatId: localStorage.getItem('st_chat_id') || '',
@@ -178,44 +179,52 @@
         let html5QrCode = null;
         let isProcessingScan = false;
 
-        // Initialize Firebase SDKs & Auth Engine
+        function loadLocalMockData() {
+            try {
+                window.appState.students = JSON.parse(localStorage.getItem('st_students') || '[]');
+                window.appState.teachers = JSON.parse(localStorage.getItem('st_teachers') || '[]');
+                window.appState.attendance = JSON.parse(localStorage.getItem('st_attendance') || '[]');
+                window.appState.timetable = JSON.parse(localStorage.getItem('st_timetable') || '[]');
+            } catch (e) {
+                console.warn("Local mock load note:", e);
+            }
+        }
+
+        // Safe Initialize Firebase SDKs & Auth Engine
         async function initApp() {
             try {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
+                loadLocalMockData();
 
-                // Authenticate
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
+                if (typeof initializeApp !== 'undefined') {
+                    app = initializeApp(firebaseConfig);
+                    db = getFirestore(app);
+                    auth = getAuth(app);
 
-                currentUser = auth.currentUser;
-                if (currentUser) {
-                    isFirebaseConnected = true;
-                    console.log("🔥 Firebase initialized & Authenticated successfully!");
-                    setupRealtimeListeners();
-                    // Initial fetch from cloud immediately
-                    await window.forceCloudSyncAllData();
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                        currentUser = auth.currentUser;
+                        if (currentUser) {
+                            isFirebaseConnected = true;
+                            console.log("🔥 Firebase initialized & Authenticated successfully!");
+                            setupRealtimeListeners();
+                            await window.forceCloudSyncAllData();
+                        }
+                    } catch (authErr) {
+                        console.warn("⚠️ Firebase auth note:", authErr);
+                    }
                 }
             } catch (e) {
                 console.warn("⚠️ Firebase connection fallback active:", e);
-                loadLocalMockData();
             }
 
             setTimeout(() => {
                 renderCurrentTab();
                 updateNavActiveState();
             }, 300);
-        }
-
-        function loadLocalMockData() {
-            window.appState.students = JSON.parse(localStorage.getItem('st_students') || '[]');
-            window.appState.teachers = JSON.parse(localStorage.getItem('st_teachers') || '[]');
-            window.appState.attendance = JSON.parse(localStorage.getItem('st_attendance') || '[]');
-            window.appState.timetable = JSON.parse(localStorage.getItem('st_timetable') || '[]');
         }
 
         function setupRealtimeListeners() {
@@ -254,7 +263,6 @@
             }, (err) => console.log("Teachers snapshot note:", err));
         }
 
-        // Global manual force sync function from cloud database
         window.forceCloudSyncAllData = async function() {
             if (!isFirebaseConnected) {
                 showToast("ប្រព័ន្ធមិនទាន់ភ្ជាប់ Cloud! សូមពិនិត្យអ៊ីនធឺណិត", "error");
@@ -266,7 +274,6 @@
             try {
                 const getColRef = (col) => collection(db, 'artifacts', appId, 'public', 'data', col);
                 
-                // Fetch attendance
                 const attSnap = await getDocs(getColRef('attendance'));
                 const attList = [];
                 attSnap.forEach(doc => attList.push({ firebaseId: doc.id, ...doc.data() }));
@@ -274,13 +281,11 @@
                     window.appState.attendance = attList.sort((a,b) => new Date(b.time) - new Date(a.time));
                 }
 
-                // Fetch students
                 const stuSnap = await getDocs(getColRef('students'));
                 const stuList = [];
                 stuSnap.forEach(doc => stuList.push({ firebaseId: doc.id, ...doc.data() }));
                 if (stuList.length > 0) window.appState.students = stuList;
 
-                // Fetch teachers
                 const teaSnap = await getDocs(getColRef('teachers'));
                 const teaList = [];
                 teaSnap.forEach(doc => teaList.push({ firebaseId: doc.id, ...doc.data() }));
@@ -323,66 +328,19 @@
         }
 
         function saveToLocalStorage() {
-            localStorage.setItem('st_students', JSON.stringify(window.appState.students));
-            localStorage.setItem('st_teachers', JSON.stringify(window.appState.teachers));
-            localStorage.setItem('st_attendance', JSON.stringify(window.appState.attendance));
-            localStorage.setItem('st_timetable', JSON.stringify(window.appState.timetable));
-            localStorage.setItem('st_classes', JSON.stringify(window.appState.classes));
-            localStorage.setItem('st_bot_token', window.appState.telegramConfig.botToken);
-            localStorage.setItem('st_chat_id', window.appState.telegramConfig.defaultChatId);
-            localStorage.setItem('st_class_chat_ids', JSON.stringify(window.appState.telegramConfig.classChatIds));
-            localStorage.setItem('st_auto_tg_send', window.appState.telegramConfig.autoSendOnScan ? 'true' : 'false');
-        }
-
-        // Global Navigation & Tab Switching
-        window.switchTab = function(tabName) {
-            // Stop camera safely when leaving scanner tab
-            if (window.appState.currentTab === 'scanner' && tabName !== 'scanner') {
-                stopCameraStream();
-            }
-            window.appState.currentTab = tabName;
-            updateNavActiveState();
-            renderCurrentTab();
-        }
-
-        function updateNavActiveState() {
-            const tabs = ['scanner', 'attendance', 'people', 'timetable', 'reports'];
-            tabs.forEach(t => {
-                const btn = document.getElementById(`nav-btn-${t}`);
-                if (btn) {
-                    if (t === window.appState.currentTab) {
-                        btn.className = "flex flex-col items-center justify-center w-14 py-1 text-emerald-400 font-bold scale-110 transition-all duration-200 bg-emerald-950/60 rounded-xl border border-emerald-500/30 shadow-lg shadow-emerald-900/50";
-                    } else {
-                        btn.className = "flex flex-col items-center justify-center w-14 py-1 text-slate-400 hover:text-emerald-400 font-medium transition-all duration-200 hover:scale-105 active:scale-95";
-                    }
-                }
-            });
-
-            // Update Header Role Badge Text & Color
-            const roleBadge = document.getElementById('user-role-badge');
-            const roleText = document.getElementById('role-text-display');
-            if (roleBadge && roleText) {
-                const isAdmin = window.appState.role === 'Admin';
-                roleText.innerText = window.appState.role;
-                if (isAdmin) {
-                    roleBadge.className = "px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-bold shadow uppercase transition flex items-center gap-1 cursor-pointer";
-                } else {
-                    roleBadge.className = "px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-[10px] font-bold shadow uppercase transition flex items-center gap-1 cursor-pointer";
-                }
-            }
-
-            // Update Auto Telegram Button UI in Header
-            const autoTgBtn = document.getElementById('auto-tg-btn');
-            const autoTgText = document.getElementById('auto-tg-status-text');
-            if (autoTgBtn && autoTgText) {
-                const isAuto = window.appState.telegramConfig.autoSendOnScan;
-                if (isAuto) {
-                    autoTgBtn.className = "px-2 py-1 rounded-lg text-[10px] font-bold shadow uppercase transition flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/50 cursor-pointer";
-                    autoTgText.innerText = "សារស្វ័យប្រវត្តិ: បើក";
-                } else {
-                    autoTgBtn.className = "px-2 py-1 rounded-lg text-[10px] font-bold shadow uppercase transition flex items-center gap-1 bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-500/50 cursor-pointer";
-                    autoTgText.innerText = "សារស្វ័យប្រវត្តិ: បិទ";
-                }
+            try {
+                localStorage.setItem('st_students', JSON.stringify(window.appState.students || []));
+                localStorage.setItem('st_teachers', JSON.stringify(window.appState.teachers || []));
+                localStorage.setItem('st_attendance', JSON.stringify(window.appState.attendance || []));
+                localStorage.setItem('st_timetable', JSON.stringify(window.appState.timetable || []));
+                localStorage.setItem('st_classes', JSON.stringify(window.appState.classes || []));
+                localStorage.setItem('st_gsheet_url', window.appState.googleSheetUrl || '');
+                localStorage.setItem('st_bot_token', window.appState.telegramConfig.botToken || '');
+                localStorage.setItem('st_chat_id', window.appState.telegramConfig.defaultChatId || '');
+                localStorage.setItem('st_class_chat_ids', JSON.stringify(window.appState.telegramConfig.classChatIds || {}));
+                localStorage.setItem('st_auto_tg_send', window.appState.telegramConfig.autoSendOnScan ? 'true' : 'false');
+            } catch (e) {
+                console.error("Local Storage Save Error:", e);
             }
         }
 
@@ -397,13 +355,11 @@
         window.switchUserRolePrompt = function() {
             const currentRole = window.appState.role;
             if (currentRole === 'Admin') {
-                // Switch to Teacher directly
                 window.appState.role = 'Teacher';
                 showToast("បានផ្លាស់ប្តូរទៅជាសិទ្ធិ «គ្រូបង្រៀន (Teacher)»", "info");
                 updateNavActiveState();
                 renderCurrentTab();
             } else {
-                // Switch to Admin requires PIN
                 promptAdminPinVerification(() => {
                     window.appState.role = 'Admin';
                     showToast("បានផ្លាស់ប្តូរទៅជាសិទ្ធិ «អ្នកគ្រប់គ្រង (Admin)»", "success");
@@ -411,6 +367,40 @@
                     renderCurrentTab();
                 });
             }
+        }
+
+        function updateNavActiveState() {
+            ['scanner', 'attendance', 'people', 'timetable', 'reports'].forEach(tab => {
+                const btn = document.getElementById(`nav-btn-${tab}`);
+                if (btn) {
+                    if (tab === window.appState.currentTab) {
+                        btn.className = "flex flex-col items-center justify-center w-14 py-1 text-emerald-400 font-bold transition-all duration-200 scale-105";
+                    } else {
+                        btn.className = "flex flex-col items-center justify-center w-14 py-1 text-slate-400 hover:text-emerald-400 font-medium transition-all duration-200";
+                    }
+                }
+            });
+
+            const roleBadge = document.getElementById('role-text-display');
+            if (roleBadge) roleBadge.innerText = window.appState.role;
+
+            const autoTgText = document.getElementById('auto-tg-status-text');
+            const autoTgBtn = document.getElementById('auto-tg-btn');
+            if (autoTgText && autoTgBtn) {
+                const active = window.appState.telegramConfig.autoSendOnScan;
+                autoTgText.innerText = active ? "សារស្វ័យប្រវត្តិ: បើក" : "សារស្វ័យប្រវត្តិ: បិទ";
+                autoTgBtn.className = active ? "px-2 py-1 rounded-lg text-[10px] font-bold shadow uppercase transition flex items-center gap-1 bg-emerald-700 text-emerald-100 border border-emerald-500" : "px-2 py-1 rounded-lg text-[10px] font-bold shadow uppercase transition flex items-center gap-1 bg-slate-800 text-slate-400 border border-slate-700";
+            }
+        }
+
+        window.switchTab = async function(tabName) {
+            if (window.appState.currentTab === tabName) return;
+            if (window.appState.currentTab === 'scanner') {
+                await stopCameraStream();
+            }
+            window.appState.currentTab = tabName;
+            updateNavActiveState();
+            renderCurrentTab();
         }
 
         function promptAdminPinVerification(onSuccess) {
@@ -490,33 +480,34 @@
                 const readerCheck = document.getElementById("reader");
                 if (!readerCheck) return;
 
-                html5QrCode = new Html5Qrcode("reader");
-                
-                // Safe check for Html5QrcodeSupportedFormats enum values
-                const formats = (typeof Html5QrcodeSupportedFormats !== 'undefined') ? [
-                    Html5QrcodeSupportedFormats.QR_CODE,
-                    Html5QrcodeSupportedFormats.DATA_MATRIX,
-                    Html5QrcodeSupportedFormats.AZTEC
-                ] : undefined;
+                if (typeof Html5Qrcode !== 'undefined') {
+                    html5QrCode = new Html5Qrcode("reader");
+                    
+                    const formats = (typeof Html5QrcodeSupportedFormats !== 'undefined') ? [
+                        Html5QrcodeSupportedFormats.QR_CODE,
+                        Html5QrcodeSupportedFormats.DATA_MATRIX,
+                        Html5QrcodeSupportedFormats.AZTEC
+                    ] : undefined;
 
-                const config = { 
-                    fps: 10, // Adjusted FPS for smoother & controlled frame processing
-                    qrbox: (viewfinderWidth, viewfinderHeight) => {
-                        const minDim = Math.min(viewfinderWidth, viewfinderHeight);
-                        return { width: Math.floor(minDim * 0.85), height: Math.floor(minDim * 0.85) };
-                    },
-                    aspectRatio: 1.0,
-                    ...(formats ? { formatsToSupport: formats } : {}),
-                    experimentalFeatures: {
-                        useBarCodeDetectorIfSupported: true
-                    }
-                };
-                await html5QrCode.start(
-                    { facingMode: "environment" }, 
-                    config, 
-                    (decodedText) => { handleScannedResult(decodedText); }, 
-                    () => {}
-                );
+                    const config = { 
+                        fps: 10,
+                        qrbox: (viewfinderWidth, viewfinderHeight) => {
+                            const minDim = Math.min(viewfinderWidth, viewfinderHeight);
+                            return { width: Math.floor(minDim * 0.85), height: Math.floor(minDim * 0.85) };
+                        },
+                        aspectRatio: 1.0,
+                        ...(formats ? { formatsToSupport: formats } : {}),
+                        experimentalFeatures: {
+                            useBarCodeDetectorIfSupported: true
+                        }
+                    };
+                    await html5QrCode.start(
+                        { facingMode: "environment" }, 
+                        config, 
+                        (decodedText) => { handleScannedResult(decodedText); }, 
+                        () => {}
+                    );
+                }
             } catch (err) {
                 console.log("Camera access or init note:", err);
             }
@@ -543,17 +534,29 @@
 
             let code = rawCode.trim();
 
-            // Ignore QR Sync payloads to prevent false scans
-            if (code.includes('SYNC_DATA')) {
-                showToast("ទិន្នន័យ Sync ត្រូវបានទទួល", "info");
-                setTimeout(() => { isProcessingScan = false; }, 2500);
-                return;
+            // 🔄 Check if this is a QR Sync Payload from another device
+            if (code.includes('SYNC_DATA') || code.includes('"type":"SYNC_DATA"')) {
+                try {
+                    const syncObj = JSON.parse(code);
+                    if (syncObj && syncObj.type === 'SYNC_DATA') {
+                        processImportedQrSyncData(syncObj);
+                        setTimeout(() => { isProcessingScan = false; }, 2500);
+                        return;
+                    }
+                } catch (e) {
+                    console.error("Sync QR parse error:", e);
+                }
             }
 
             // Support JSON string format inside complex/dense QR codes
             if (code.startsWith('{') && code.endsWith('}')) {
                 try {
                     const parsed = JSON.parse(code);
+                    if (parsed.type === 'SYNC_DATA') {
+                        processImportedQrSyncData(parsed);
+                        setTimeout(() => { isProcessingScan = false; }, 2500);
+                        return;
+                    }
                     code = parsed.id || parsed.code || parsed.studentId || parsed.teacherId || code;
                 } catch (e) {
                     console.log("JSON parse fallback");
@@ -617,14 +620,71 @@
             syncToFirebase('attendance', record.id, record);
 
             sendTelegramNotification(record);
+            sendGoogleSheetNotification(record);
 
             showToast(`កត់ត្រាជោគជ័យ៖ ${target.name} (${record.status})`, "success");
-            renderCurrentTab();
+        }
 
-            // Unlock scanner after 2.5 seconds delay for comfortable manual scanning
-            setTimeout(() => {
-                isProcessingScan = false;
-            }, 2500);
+        // 📊 Export to CSV file
+        window.exportToCSV = function() {
+            try {
+                const atts = window.appState.attendance;
+                if (atts.length === 0) {
+                    showToast("គ្មានទិន្នន័យវត្តមានសម្រាប់ Export ជា CSV ឡើយ!", "error");
+                    return;
+                }
+                let csvContent = "\uFEFF"; // UTF-8 BOM for Khmer text
+                csvContent += "ID,ឈ្មោះ,ប្រភេទ,ថ្នាក់,ស្ថានភាព,កាលបរិច្ឆេទនិងម៉ោង,ចំណាំ\n";
+                
+                atts.forEach(a => {
+                    const row = [
+                        `"${a.recordId}"`,
+                        `"${a.name}"`,
+                        `"${a.type}"`,
+                        `"${a.classId}"`,
+                        `"${a.status}"`,
+                        `"${a.time}"`,
+                        `"${a.note || ''}"`
+                    ];
+                    csvContent += row.join(",") + "\n";
+                });
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", `Attendance_Export_${new Date().toISOString().slice(0,10)}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showToast("ទាញយកទិន្នន័យជា File CSV ជោគជ័យ!", "success");
+            } catch (e) {
+                console.error("CSV Export error:", e);
+                showToast("បញ្ហាក្នុងការបង្កើត CSV File", "error");
+            }
+        }
+
+        // 🔗 Send Data directly to Google Sheet Webhook (Apps Script)
+        function sendGoogleSheetNotification(record) {
+            const sheetUrl = window.appState.googleSheetUrl;
+            if (!sheetUrl) return;
+
+            const payload = {
+                id: record.recordId,
+                name: record.name,
+                type: record.type,
+                classId: record.classId,
+                status: record.status,
+                time: record.time,
+                note: record.note || ''
+            };
+
+            fetch(sheetUrl, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).catch(e => console.log("Google Sheet sync note:", e));
         }
 
         // --- 2. ATTENDANCE MANAGEMENT VIEW ---
@@ -834,8 +894,9 @@
                         </div>
                         <div class="flex gap-1.5 flex-wrap justify-end">
                             ${isAdmin ? `<button onclick="openAddPersonModal()" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow"><i class="fa-solid fa-plus mr-1"></i>បន្ថែម</button>` : ''}
-                            <button onclick="exportToExcel()" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow"><i class="fa-solid fa-file-excel mr-1"></i>Excel</button>
-                            <button onclick="printAllQrCards()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow" title="បោះពុម្ពប័ណ្ណ QR ទាំងអស់"><i class="fa-solid fa-print mr-1"></i>បោះពុម្ពទាំងអស់</button>
+                            <button onclick="exportToCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-2.5 py-2 rounded-xl transition shadow" title="ទាញយកជា CSV File"><i class="fa-solid fa-file-csv mr-1"></i>CSV</button>
+                            <button onclick="exportToExcel()" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-2.5 py-2 rounded-xl transition shadow"><i class="fa-solid fa-file-excel mr-1"></i>Excel</button>
+                            <button onclick="printAllQrCards()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-2.5 py-2 rounded-xl transition shadow" title="បោះពុម្ពប័ណ្ណ QR ទាំងអស់"><i class="fa-solid fa-print mr-1"></i>បោះពុម្ព</button>
                         </div>
                     </div>
 
@@ -845,11 +906,11 @@
                             <p class="text-[10px] text-emerald-700">ស្កែន QR ផ្ទេរទិន្នន័យឆ្លងទូរស័ព្ទ</p>
                         </div>
                         <div class="flex space-x-1.5">
-                            <button onclick="openQrSyncExportModal()" class="bg-white text-emerald-800 border border-emerald-300 font-bold px-2.5 py-1.5 rounded-xl hover:bg-emerald-50 transition shadow-sm text-[11px]">
-                                <i class="fa-solid fa-share-nodes mr-1"></i>បង្កើត QR Sync
+                            <button onclick="openLibraryShareModal()" class="bg-emerald-700 text-white font-bold px-2.5 py-1.5 rounded-xl hover:bg-emerald-800 transition shadow-sm text-[11px]" title="ចែករំលែកគម្រោងនេះជា Library ទៅអ្នកដទៃ">
+                                <i class="fa-solid fa-share-nodes mr-1"></i>Share Library
                             </button>
-                            <button onclick="downloadBackupJson()" class="bg-white text-slate-700 border border-slate-300 font-bold px-2.5 py-1.5 rounded-xl hover:bg-slate-50 transition shadow-sm text-[11px]">
-                                <i class="fa-solid fa-download mr-1"></i>Backup
+                            <button onclick="openQrSyncExportModal()" class="bg-white text-emerald-800 border border-emerald-300 font-bold px-2.5 py-1.5 rounded-xl hover:bg-emerald-50 transition shadow-sm text-[11px]">
+                                <i class="fa-solid fa-qrcode mr-1"></i>QR Sync
                             </button>
                         </div>
                     </div>
@@ -1085,72 +1146,143 @@
             }
         }
 
-        window.downloadBackupJson = function() {
-            const backupObj = {
-                students: window.appState.students,
-                teachers: window.appState.teachers,
-                attendance: window.appState.attendance,
-                timetable: window.appState.timetable
-            };
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupObj, null, 2));
-            const dlAnchorElem = document.createElement('a');
-            dlAnchorElem.setAttribute("href", dataStr);
-            dlAnchorElem.setAttribute("download", `ST_School_Backup_${new Date().toISOString().slice(0,10)}.json`);
-            dlAnchorElem.click();
-            showToast("ទាញយកឯកសារ Backup រួចរាល់!", "success");
+        // 📤 Open QR Sync Export Modal (Generate Lightweight Sync Key)
+        window.openQrSyncExportModal = async function() {
+            try {
+                const syncKey = 'SYNC-' + Date.now();
+                const syncPayload = {
+                    type: "SYNC_DATA_KEY",
+                    key: syncKey,
+                    ver: "1.0",
+                    timestamp: Date.now(),
+                    students: window.appState.students || [],
+                    teachers: window.appState.teachers || [],
+                    timetable: window.appState.timetable || []
+                };
+
+                const qrCodeString = JSON.stringify({ type: "SYNC_DATA_KEY", key: syncKey });
+
+                const html = `
+                    <div id="qr-sync-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+                        <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center space-y-4">
+                            <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+                                <h3 class="font-bold text-sm text-slate-800"><i class="fa-solid fa-qrcode text-emerald-600 mr-2"></i>QR Code Sync ឆ្លងទូរស័ព្ទ</h3>
+                                <button onclick="closeModal('qr-sync-modal')" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                            <p class="text-xs text-slate-500">ស្កែន QR នេះពីទូរស័ព្ទដៃមួយទៀត តាមរយៈម៉ឺនុយ <b>«ស្កែន QR»</b> ដើម្បីទាញយកទិន្នន័យ (សិស្ស ${(window.appState.students||[]).length} នាក់, គ្រូ ${(window.appState.teachers||[]).length} នាក់) ចូលភ្លាមៗ!</p>
+                            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex justify-center">
+                                <div id="qrcode-sync-render" class="p-2 bg-white rounded-xl shadow-sm border border-slate-200 min-h-[180px] min-w-[180px] flex items-center justify-center overflow-hidden"></div>
+                            </div>
+                            <div class="flex space-x-2">
+                                <button onclick="closeModal('qr-sync-modal')" class="w-full bg-brand-600 text-white py-2.5 rounded-xl text-xs font-bold shadow">យល់ព្រម / បិទ</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                const container = document.getElementById('modal-container');
+                if (container) container.innerHTML = html;
+
+                setTimeout(() => {
+                    const el = document.getElementById('qrcode-sync-render');
+                    if (el) {
+                        el.innerHTML = '';
+                        const enc = encodeURIComponent(qrCodeString);
+                        el.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${enc}" class="w-44 h-44 rounded-lg object-contain shadow-inner" alt="Sync QR Code" onerror="this.onerror=null; this.src='https://placehold.co/180x180/10b981/ffffff?text=QR+Code+Sync';">`;
+                    }
+                }, 100);
+
+                // Push payload to cloud under sync_payloads safely in background
+                syncToFirebase('sync_payloads', syncKey, syncPayload);
+            } catch (err) {
+                console.error("openQrSyncExportModal error:", err);
+                showToast("មានបញ្ហាក្នុងការបង្កើត QR Sync", "error");
+            }
         }
 
-        window.openQrSyncExportModal = function() {
+        // 🌐 Open Library & Project Share Modal
+        window.openLibraryShareModal = function() {
+            const currentUrl = window.location.href;
             const html = `
-                <div id="qr-sync-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
-                    <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center space-y-4">
+                <div id="lib-share-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+                    <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-4 text-xs">
                         <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-                            <h3 class="font-bold text-sm text-slate-800"><i class="fa-solid fa-qrcode text-emerald-600 mr-2"></i>QR Code Sync ឆ្លងទូរស័ព្ទ</h3>
-                            <button onclick="closeModal('qr-sync-modal')" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+                            <h3 class="font-bold text-sm text-slate-800"><i class="fa-solid fa-book-bookmark text-emerald-600 mr-2"></i>ចែករំលែកគម្រោងជា Library ទៅអ្នកដទៃ</h3>
+                            <button onclick="closeModal('lib-share-modal')" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
                         </div>
-                        <p class="text-xs text-slate-500">ស្កែន QR នេះពីទូរស័ព្ទដៃមួយទៀត ដើម្បី Sync កញ្ចប់ទិន្នន័យសិស្ស និងគ្រូបង្រៀនភ្លាមៗ!</p>
-                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex justify-center">
-                            <div id="qrcode-sync-render" class="p-2 bg-white rounded-xl shadow-sm border border-slate-200 min-h-[160px] flex items-center justify-center"></div>
+                        <p class="text-slate-600 leading-relaxed">លោកអ្នកអាចចែករំលែកប្រព័ន្ធ <b>«វិទ្យាល័យឥស្លាមស្ទឹងត្រែង»</b> នេះឱ្យក្រុមការងារ សាលារៀនផ្សេង ឬអ្នកអភិវឌ្ឍន៍ដទៃទៀតយកទៅប្រើប្រាស់ជា Library និងកែច្នៃបន្តបានតាម ៣ វិធី៖</p>
+                        
+                        <div class="space-y-3">
+                            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-1">
+                                <h4 class="font-bold text-slate-800"><i class="fa-solid fa-link text-brand-600 mr-1"></i>វិធីទី ១៖ ចែករំលែកតំណភ្ជាប់ (Web App Link)</h4>
+                                <p class="text-[11px] text-slate-500">Copy Link នេះផ្ញើជូនមិត្តភក្តិ ឬក្រុមការងារ ដើម្បីបើកប្រើប្រាស់បានភ្លាមៗ៖</p>
+                                <div class="flex gap-1 pt-1">
+                                    <input type="text" readonly value="${currentUrl}" id="lib-share-url-box" class="flex-1 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-[10px] font-mono text-slate-600">
+                                    <button onclick="navigator.clipboard.writeText(document.getElementById('lib-share-url-box').value); showToast('បាន Copy Link រួចរាល់!', 'success');" class="bg-brand-600 text-white px-3 py-1.5 rounded-xl font-bold">Copy</button>
+                                </div>
+                            </div>
+
+                            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-1">
+                                <h4 class="font-bold text-slate-800"><i class="fa-solid fa-file-arrow-down text-amber-600 mr-1"></i>វិធីទី ២៖ នាំចេញកូដប្រភព (Export Backup / JSON)</h4>
+                                <p class="text-[11px] text-slate-500">ទាញយកទិន្នន័យសិស្ស គ្រូ និងកាលវិភាគជា File JSON ដើម្បីយកទៅ Import ចូលប្រព័ន្ធថ្មី៖</p>
+                                <button onclick="downloadBackupJson(); closeModal('lib-share-modal');" class="mt-1 w-full bg-amber-600 text-white py-2 rounded-xl font-bold shadow flex items-center justify-center gap-1.5">
+                                    <i class="fa-solid fa-download"></i><span>ទាញយក Backup JSON File</span>
+                                </button>
+                            </div>
+
+                            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-1">
+                                <h4 class="font-bold text-slate-800"><i class="fa-solid fa-cloud text-sky-600 mr-1"></i>វិធីទី ៣៖ ការតភ្ជាប់ Google Sheet & Telegram Library</h4>
+                                <p class="text-[11px] text-slate-500">អ្នកប្រើប្រាស់ថ្មីអាចចូលទៅកាន់ <b>ការកំណត់ (⚙️ Settings)</b> ដើម្បីភ្ជាប់ Google Apps Script Webhook និង Telegram Bot Token ផ្ទាល់ខ្លួនរបស់ពួកគេដោយសេរី។</p>
+                            </div>
                         </div>
-                        <div class="flex space-x-2">
-                            <button onclick="closeModal('qr-sync-modal')" class="w-full bg-brand-600 text-white py-2.5 rounded-xl text-xs font-bold shadow">យល់ព្រម / បិទ</button>
-                        </div>
+
+                        <button onclick="closeModal('lib-share-modal')" class="w-full bg-slate-800 text-white py-2.5 rounded-xl font-bold">យល់ព្រម / បិទ</button>
                     </div>
                 </div>
             `;
-            document.getElementById('modal-container').innerHTML = html;
+            const container = document.getElementById('modal-container');
+            if (container) container.innerHTML = html;
+        }
 
-            setTimeout(() => {
-                try {
-                    const el = document.getElementById('qrcode-sync-render');
-                    if (el && typeof QRCode !== 'undefined') {
-                        el.innerHTML = '';
-                        new QRCode(el, {
-                            text: JSON.stringify({ type: "SYNC_DATA", count: window.appState.students.length }),
-                            width: 160,
-                            height: 160,
-                            correctLevel: QRCode.CorrectLevel.M
-                        });
+        window.processImportedQrSyncData = async function(parsedObj) {
+            try {
+                if (parsedObj && parsedObj.key) {
+                    showToast("កំពុងទាញយកទិន្នន័យ Sync ពី Cloud...", "info");
+                    if (isFirebaseConnected) {
+                        try {
+                            const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'sync_payloads'));
+                            let foundData = null;
+                            snap.forEach(d => {
+                                if (d.id === parsedObj.key) foundData = d.data();
+                            });
+
+                            if (foundData) {
+                                if (foundData.students && foundData.students.length > 0) window.appState.students = foundData.students;
+                                if (foundData.teachers && foundData.teachers.length > 0) window.appState.teachers = foundData.teachers;
+                                if (foundData.timetable && foundData.timetable.length > 0) window.appState.timetable = foundData.timetable;
+
+                                saveToLocalStorage();
+                                renderCurrentTab();
+                                showToast("Sync ទិន្នន័យឆ្លងទូរស័ព្ទជោគជ័យ!", "success");
+                                return;
+                            }
+                        } catch (cloudFetchErr) {
+                            console.error("Cloud fetch sync error:", cloudFetchErr);
+                        }
                     }
-                } catch (e) {
-                    console.error("Sync QR Render error:", e);
                 }
-            }, 100);
+                showToast("មិនអាចស្វែងរកទិន្នន័យ QR Sync នេះឡើយ!", "error");
+            } catch (e) {
+                console.error("processImportedQrSyncData error:", e);
+                showToast("មានបញ្ហាក្នុងការទទួល Sync QR", "error");
+            }
         }
 
         window.handleQrButtonClick = function(type, id) {
-            try {
-                let target = null;
-                if (type === 'student') {
-                    target = window.appState.students.find(s => s.id === id);
-                    if (target) window.showQrCard(target.id, target.name, target.classId);
-                } else {
-                    target = window.appState.teachers.find(t => t.id === id);
-                    if (target) window.showQrCard(target.id, target.name, target.subject);
-                }
-            } catch (err) {
-                console.error("handleQrButtonClick Error:", err);
-                showToast("មិនអាចបើក QR Card បានទេ!", "error");
+            const list = type === 'student' ? window.appState.students : window.appState.teachers;
+            const person = list.find(p => p.id === id);
+            if (person) {
+                const subInfo = type === 'student' ? `ថ្នាក់ ${person.classId}` : `មុខវិជ្ជា ${person.subject}`;
+                showQrCard(person.id, person.name, subInfo);
             }
         }
 
@@ -1172,7 +1304,7 @@
                                 <p class="text-xs text-brand-600 font-medium">${safeInfo}</p>
                             </div>
                             <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex flex-col items-center justify-center">
-                                <div id="qrcode-render" class="p-2 bg-white rounded-xl shadow-sm border border-slate-200 min-h-[160px] flex items-center justify-center"></div>
+                                <div id="qrcode-render" class="p-2 bg-white rounded-xl shadow-sm border border-slate-200 min-h-[160px] min-w-[160px] flex items-center justify-center overflow-hidden"></div>
                                 <span class="text-[10px] font-mono text-slate-500 mt-2 font-bold tracking-widest">${id}</span>
                             </div>
                             <div class="flex space-x-2">
@@ -1186,28 +1318,11 @@
                 if (container) container.innerHTML = html;
 
                 setTimeout(() => {
-                    try {
-                        const qrContainer = document.getElementById('qrcode-render');
-                        if (qrContainer && typeof QRCode !== 'undefined') {
-                            qrContainer.innerHTML = '';
-                            const densePayload = JSON.stringify({
-                                school: "Steung Treng Islamic High School",
-                                id: id,
-                                name: name || id,
-                                info: subInfo || '',
-                                ver: "1.0"
-                            });
-                            new QRCode(qrContainer, {
-                                text: densePayload,
-                                width: 160,
-                                height: 160,
-                                colorDark : "#000000",
-                                colorLight : "#ffffff",
-                                correctLevel : QRCode.CorrectLevel.H
-                            });
-                        }
-                    } catch (err) {
-                        console.error("QRCode render error:", err);
+                    const qrContainer = document.getElementById('qrcode-render');
+                    if (qrContainer) {
+                        qrContainer.innerHTML = '';
+                        const enc = encodeURIComponent(String(id));
+                        qrContainer.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${enc}" class="w-40 h-40 rounded-lg object-contain" alt="QR Card" onerror="this.onerror=null; this.src='https://placehold.co/160x160/10b981/ffffff?text=${enc}';">`;
                     }
                 }, 100);
             } catch (e) {
@@ -1262,6 +1377,10 @@
 
             const safeCloseScript = '<\x2Fscript>';
             const printWindow = window.open('', '_blank');
+            if (!printWindow) {
+                showToast("សូមបើកការអនុញ្ញាត Popup Window ដើម្បីបោះពុម្ព!", "error");
+                return;
+            }
             printWindow.document.write(`
                 <!DOCTYPE html>
                 <html>
@@ -1293,10 +1412,10 @@
                                 const el = document.getElementById('print-qr-' + p.id);
                                 if (el) {
                                     new QRCode(el, {
-                                        text: JSON.stringify({ school: "STIS", id: p.id, name: p.name }),
+                                        text: String(p.id),
                                         width: 120,
                                         height: 120,
-                                        correctLevel: QRCode.CorrectLevel.H
+                                        correctLevel: QRCode.CorrectLevel.M
                                     });
                                 }
                             });
@@ -1349,13 +1468,10 @@
                                                 <p class="text-[10px] text-slate-500"><i class="fa-solid fa-clock mr-1 text-slate-400"></i>${t.period} • <i class="fa-solid fa-chalkboard-user mr-1 text-slate-400"></i>${t.teacher}</p>
                                             </div>
                                             ${isAdmin ? `
-                                                <div class="flex items-center space-x-1">
-                                                    <button onclick="openEditTimetableModal('${t.id}')" class="text-sky-600 hover:bg-sky-100 p-1.5 rounded-md text-xs" title="កែប្រែ"><i class="fa-solid fa-pen"></i></button>
-                                                    <button onclick="deleteTimetable('${t.id}')" class="text-rose-600 hover:bg-rose-100 p-1.5 rounded-md text-xs" title="លុប"><i class="fa-solid fa-trash"></i></button>
-                                                </div>
+                                                <button onclick="deleteTimetable('${t.id}')" class="text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg text-xs" title="លុប"><i class="fa-solid fa-trash"></i></button>
                                             ` : ''}
                                         </div>
-                                    `).join('') || '<p class="text-[11px] text-slate-400 italic py-1">គ្មានម៉ោងសិក្សាសម្រាប់ថ្ងៃនេះ</p>'}
+                                    `).join('') || '<p class="text-[10px] text-slate-400 italic py-1">គ្មានម៉ោងសិក្សា</p>'}
                                 </div>
                             </div>
                         `).join('')}
@@ -1364,13 +1480,20 @@
             `;
         }
 
+        window.updateTimetableFilter = function(classId) {
+            window.appState.selectedClassFilter = classId;
+            renderCurrentTab();
+        }
+
         window.openAddTimetableModal = function() {
-            const classOptionsHtml = window.appState.classes.map(c => `<option value="${c}" ${window.appState.selectedClassFilter===c?'selected':''}>ថ្នាក់ទី ${c}</option>`).join('');
+            const classOptionsHtml = window.appState.classes.map(c => `<option value="${c}">${c}</option>`).join('');
+            const teacherOptionsHtml = window.appState.teachers.map(t => `<option value="${t.name}">${t.name} (${t.subject})</option>`).join('');
+            
             const html = `
                 <div id="add-tt-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
                     <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-3 text-xs">
                         <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-                            <h3 class="font-bold text-slate-800"><i class="fa-solid fa-plus text-brand-600 mr-1.5"></i>បន្ថែមម៉ោងសិក្សា</h3>
+                            <h3 class="font-bold text-slate-800"><i class="fa-solid fa-plus-circle text-brand-600 mr-1.5"></i>បន្ថែមម៉ោងសិក្សា</h3>
                             <button onclick="closeModal('add-tt-modal')" class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
                         </div>
                         <div>
@@ -1392,19 +1515,15 @@
                         </div>
                         <div>
                             <label class="block font-medium text-slate-700 mb-1">វេនសិក្សា</label>
-                            <select id="tt-shift-select" onchange="toggleCustomShiftInput('tt-shift-select', 'tt-custom-shift-container')" class="w-full border border-slate-300 rounded-xl p-2.5 bg-white">
-                                <option value="ព្រឹក">វេនព្រឹក</option>
-                                <option value="ល្ងាច">វេនល្ងាច</option>
-                                <option value="CUSTOM">កំណត់ដោយសេរី (Custom)</option>
+                            <select id="tt-shift" class="w-full border border-slate-300 rounded-xl p-2.5 bg-white">
+                                <option value="ព្រឹក">ព្រឹក</option>
+                                <option value="ល្ងាច">ល្ងាច</option>
+                                <option value="យប់">យប់</option>
                             </select>
                         </div>
-                        <div id="tt-custom-shift-container" class="hidden">
-                            <label class="block font-medium text-slate-700 mb-1">បញ្ចូលវេនដោយសេរី</label>
-                            <input type="text" id="tt-custom-shift" placeholder="ឧ. វេនយប់ / Special" class="w-full border border-slate-300 rounded-xl p-2.5">
-                        </div>
                         <div>
-                            <label class="block font-medium text-slate-700 mb-1">ម៉ោង (ឧ. ០៧:០០ - ០៧:៥០)</label>
-                            <input type="text" id="tt-period" placeholder="ម៉ោងទី ១ (០៧:០០ - ០៧:៥០)" class="w-full border border-slate-300 rounded-xl p-2.5">
+                            <label class="block font-medium text-slate-700 mb-1">ម៉ោងសិក្សា (ឧ. 07:00 - 07:50)</label>
+                            <input type="text" id="tt-period" placeholder="07:00 - 07:50" class="w-full border border-slate-300 rounded-xl p-2.5">
                         </div>
                         <div>
                             <label class="block font-medium text-slate-700 mb-1">មុខវិជ្ជា</label>
@@ -1412,7 +1531,9 @@
                         </div>
                         <div>
                             <label class="block font-medium text-slate-700 mb-1">គ្រូបង្រៀន</label>
-                            <input type="text" id="tt-teacher" placeholder="លោកគ្រូ សុះ យូសុប" class="w-full border border-slate-300 rounded-xl p-2.5">
+                            <select id="tt-teacher" class="w-full border border-slate-300 rounded-xl p-2.5 bg-white">
+                                ${teacherOptionsHtml || '<option value="លោកគ្រូ គ្រូបង្រៀន">លោកគ្រូ គ្រូបង្រៀន</option>'}
+                            </select>
                         </div>
                         <div class="flex space-x-2 pt-2">
                             <button onclick="closeModal('add-tt-modal')" class="flex-1 bg-slate-100 py-2.5 rounded-xl font-bold">បោះបង់</button>
@@ -1424,160 +1545,41 @@
             document.getElementById('modal-container').innerHTML = html;
         }
 
-        window.toggleCustomShiftInput = function(selectId, containerId) {
-            const val = document.getElementById(selectId).value;
-            const container = document.getElementById(containerId);
-            if (val === 'CUSTOM') {
-                container.classList.remove('hidden');
-            } else {
-                container.classList.add('hidden');
-            }
-        }
-
         window.saveNewTimetable = function() {
-            const classId = document.getElementById('tt-class').value.trim() || '7A';
+            const classId = document.getElementById('tt-class').value;
             const day = document.getElementById('tt-day').value;
-            const shiftSelect = document.getElementById('tt-shift-select').value;
-            const shiftCustom = document.getElementById('tt-custom-shift').value.trim();
-            const shift = shiftSelect === 'CUSTOM' ? (shiftCustom || 'សេរី') : shiftSelect;
+            const shift = document.getElementById('tt-shift').value;
+            const period = document.getElementById('tt-period').value.trim();
+            const subject = document.getElementById('tt-subject').value.trim();
+            const teacher = document.getElementById('tt-teacher').value;
 
-            const period = document.getElementById('tt-period').value.trim() || 'ម៉ោងទី ១';
-            const subject = document.getElementById('tt-subject').value.trim() || 'មុខវិជ្ជា';
-            const teacher = document.getElementById('tt-teacher').value.trim() || 'គ្រូ';
+            if (!period || !subject) {
+                showToast("សូមបញ្ចូល ម៉ោង និង មុខវិជ្ជា!", "error");
+                return;
+            }
 
             const item = {
                 id: 'TT-' + Date.now(),
-                classId, day, period, subject, teacher, shift
+                classId,
+                day,
+                shift,
+                period,
+                subject,
+                teacher
             };
 
             window.appState.timetable.push(item);
-            saveToLocalStorage();
+            syncToFirebase('timetable', item.id, item);
+
             showToast("បន្ថែមម៉ោងសិក្សាជោគជ័យ!", "success");
             closeModal('add-tt-modal');
             renderCurrentTab();
         }
 
-        window.openEditTimetableModal = function(ttId) {
-            const tt = window.appState.timetable.find(t => t.id === ttId);
-            if (!tt) return;
-
-            const isCustom = tt.shift !== 'ព្រឹក' && tt.shift !== 'ល្ងាច';
-
-            const html = `
-                <div id="edit-tt-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
-                    <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-3 text-xs">
-                        <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-                            <h3 class="font-bold text-slate-800"><i class="fa-solid fa-pen-to-square text-brand-600 mr-1.5"></i>កែប្រែម៉ោងសិក្សា</h3>
-                            <button onclick="closeModal('edit-tt-modal')" class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">ថ្នាក់រៀន</label>
-                            <input type="text" id="edit-tt-class" value="${tt.classId}" class="w-full border border-slate-300 rounded-xl p-2.5">
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">ថ្ងៃសិក្សា</label>
-                            <select id="edit-tt-day" class="w-full border border-slate-300 rounded-xl p-2.5 bg-white">
-                                <option value="ចន្ទ" ${tt.day==='ចន្ទ'?'selected':''}>ចន្ទ</option>
-                                <option value="អង្គារ" ${tt.day==='អង្គារ'?'selected':''}>អង្គារ</option>
-                                <option value="ពុធ" ${tt.day==='ពុធ'?'selected':''}>ពុធ</option>
-                                <option value="ព្រហស្បតិ៍" ${tt.day==='ព្រហស្បតិ៍'?'selected':''}>ព្រហស្បតិ៍</option>
-                                <option value="សុក្រ" ${tt.day==='សុក្រ'?'selected':''}>សុក្រ</option>
-                                <option value="សៅរ៍" ${tt.day==='សៅរ៍'?'selected':''}>សៅរ៍</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">វេនសិក្សា</label>
-                            <select id="edit-tt-shift-select" onchange="toggleCustomShiftInput('edit-tt-shift-select', 'edit-tt-custom-shift-container')" class="w-full border border-slate-300 rounded-xl p-2.5 bg-white">
-                                <option value="ព្រឹក" ${tt.shift==='ព្រឹក'?'selected':''}>វេនព្រឹក</option>
-                                <option value="ល្ងាច" ${tt.shift==='ល្ងាច'?'selected':''}>វេនល្ងាច</option>
-                                <option value="CUSTOM" ${isCustom?'selected':''}>កំណត់ដោយសេរី (Custom)</option>
-                            </select>
-                        </div>
-                        <div id="edit-tt-custom-shift-container" class="${isCustom?'':'hidden'}">
-                            <label class="block font-medium text-slate-700 mb-1">បញ្ចូលវេនដោយសេរី</label>
-                            <input type="text" id="edit-tt-custom-shift" value="${isCustom?tt.shift:''}" placeholder="ឧ. វេនយប់ / Special" class="w-full border border-slate-300 rounded-xl p-2.5">
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">ម៉ោងសិក្សា</label>
-                            <input type="text" id="edit-tt-period" value="${tt.period}" class="w-full border border-slate-300 rounded-xl p-2.5">
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">មុខវិជ្ជា</label>
-                            <input type="text" id="edit-tt-subject" value="${tt.subject}" class="w-full border border-slate-300 rounded-xl p-2.5">
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">គ្រូបង្រៀន</label>
-                            <input type="text" id="edit-tt-teacher" value="${tt.teacher}" class="w-full border border-slate-300 rounded-xl p-2.5">
-                        </div>
-                        <div class="flex space-x-2 pt-2">
-                            <button onclick="closeModal('edit-tt-modal')" class="flex-1 bg-slate-100 py-2.5 rounded-xl font-bold">បោះបង់</button>
-                            <button onclick="saveEditTimetable('${tt.id}')" class="flex-1 bg-brand-600 text-white py-2.5 rounded-xl font-bold shadow">រក្សាទុក</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            document.getElementById('modal-container').innerHTML = html;
-        }
-
-        window.saveEditTimetable = function(ttId) {
-            const classId = document.getElementById('edit-tt-class').value.trim() || '7A';
-            const day = document.getElementById('edit-tt-day').value;
-            const shiftSelect = document.getElementById('edit-tt-shift-select').value;
-            const shiftCustom = document.getElementById('edit-tt-custom-shift').value.trim();
-            const shift = shiftSelect === 'CUSTOM' ? (shiftCustom || 'សេរី') : shiftSelect;
-
-            const period = document.getElementById('edit-tt-period').value.trim();
-            const subject = document.getElementById('edit-tt-subject').value.trim();
-            const teacher = document.getElementById('edit-tt-teacher').value.trim();
-
-            const idx = window.appState.timetable.findIndex(t => t.id === ttId);
-            if (idx !== -1) {
-                window.appState.timetable[idx] = { id: ttId, classId, day, period, subject, teacher, shift };
-                saveToLocalStorage();
-                showToast("កែប្រែកាលវិភាគជោគជ័យ!", "success");
-                closeModal('edit-tt-modal');
-                renderCurrentTab();
-            }
-        }
-
-        window.showCloudInfoModal = function() {
-            const html = `
-                <div id="cloud-info-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
-                    <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-4 text-xs">
-                        <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-                            <h3 class="font-bold text-slate-800 flex items-center gap-2">
-                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                <span>ពន្យល់អំពី Cloud Sync Active</span>
-                            </h3>
-                            <button onclick="closeModal('cloud-info-modal')" class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
-                        </div>
-                        <div class="space-y-2.5 text-slate-600">
-                            <div class="bg-emerald-50 p-3 rounded-2xl border border-emerald-200 text-emerald-900">
-                                <p class="font-bold mb-1"><i class="fa-solid fa-cloud-arrow-up mr-1 text-emerald-600"></i>ប្រព័ន្ធកំពុងភ្ជាប់ Cloud Database Real-time</p>
-                                <p class="text-[11px] leading-relaxed">ពាក្យថា <b>Cloud Sync Active</b> ពណ៌បៃតង មានន័យថា ប្រព័ន្ធគ្រប់គ្រងសាលារៀនបានភ្ជាប់ទៅកាន់ **បណ្តាញ Cloud (Firebase)** ដោយជោគជ័យ!</p>
-                            </div>
-                            <ul class="space-y-2 text-[11px]">
-                                <li class="flex items-start gap-2">
-                                    <i class="fa-solid fa-circle-check text-emerald-600 mt-0.5"></i>
-                                    <span><b>Sync ឆ្លងឧបករណ៍ (Real-time):</b> ពេលបញ្ចូលសិស្ស គ្រូ ឬស្កែនវត្តមានលើទូរស័ព្ទមួយ ទិន្នន័យនឹងលោតចូលទូរស័ព្ទផ្សេងទៀតភ្លាមៗ។</span>
-                                </li>
-                                <li class="flex items-start gap-2">
-                                    <i class="fa-solid fa-shield-halved text-emerald-600 mt-0.5"></i>
-                                    <span><b>សុវត្ថិភាពទិន្នន័យ:</b> ទិន្នន័យទាំងអស់ត្រូវបានរក្សាទុកនៅលើ Cloud ដោយសុវត្ថិភាព មិនបាត់បង់ឡើយទោះបីដូរទូរស័ព្ទ ឬបាត់ឧបករណ៍ក៏ដោយ។</span>
-                                </li>
-                            </ul>
-                        </div>
-                        <button onclick="closeModal('cloud-info-modal')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl shadow transition">យល់ព្រម</button>
-                    </div>
-                </div>
-            `;
-            document.getElementById('modal-container').innerHTML = html;
-        }
-
         window.deleteTimetable = function(ttId) {
             if (confirm("តើអ្នកពិតជាចង់លុបម៉ោងសិក្សានេះមែនទេ?")) {
                 window.appState.timetable = window.appState.timetable.filter(t => t.id !== ttId);
-                saveToLocalStorage();
+                deleteFromFirebase('timetable', ttId);
                 showToast("បានលុបម៉ោងសិក្សា!", "success");
                 renderCurrentTab();
             }
@@ -1588,151 +1590,124 @@
             const atts = window.appState.attendance;
             const selectedClass = window.appState.selectedReportClassFilter || 'ALL';
             
-            // Filter attendance based on selected class
-            const filteredAtts = selectedClass === 'ALL' 
-                ? atts 
-                : atts.filter(a => a.classId === selectedClass);
-
+            const filteredAtts = selectedClass === 'ALL' ? atts : atts.filter(a => a.classId === selectedClass);
+            
             const totalOnTime = filteredAtts.filter(a => a.status === 'មកទាន់ពេល').length;
             const totalLate = filteredAtts.filter(a => a.status === 'មកយឺត').length;
             const totalPermission = filteredAtts.filter(a => a.status === 'សុំច្បាប់').length;
             const totalAbsent = filteredAtts.filter(a => a.status === 'អវត្តមាន').length;
 
-            const classOptionsHtml = window.appState.classes.map(c => `<option value="${c}" ${selectedClass===c?'selected':''}>ថ្នាក់ទី ${c}</option>`).join('');
+            const classOptionsHtml = `<option value="ALL" ${selectedClass==='ALL'?'selected':''}>គ្រប់ថ្នាក់ទាំងអស់</option>` + 
+                window.appState.classes.map(c => `<option value="${c}" ${selectedClass===c?'selected':''}>ថ្នាក់ទី ${c}</option>`).join('');
 
             return `
                 <div class="p-4 space-y-4">
                     <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex justify-between items-center">
                         <div>
                             <h2 class="font-bold text-sm text-slate-800"><i class="fa-solid fa-chart-pie mr-1.5 text-brand-600"></i>របាយការណ៍សង្ខេបវត្តមាន</h2>
-                            <p class="text-[11px] text-slate-500">ទិន្នន័យសរុបប្រចាំថ្ងៃ / ប្រចាំខែ</p>
+                            <p class="text-[11px] text-slate-500">ស្ថិតិវត្តមានសរុបប្រចាំថ្ងៃ</p>
                         </div>
-                        <div class="flex space-x-1.5">
-                            <button onclick="sendClassReportToTelegram()" class="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow flex items-center gap-1">
-                                <i class="fa-paper-plane fa-solid"></i>
-                                <span>ផ្ញើចូល Telegram</span>
-                            </button>
-                            <button onclick="window.print()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-2.5 py-2 rounded-xl transition shadow" title="បោះពុម្ព">
-                                <i class="fa-solid fa-print"></i>
-                            </button>
+                        <div class="flex space-x-1">
+                            <button onclick="exportToCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-2.5 py-2 rounded-xl transition shadow" title="ទាញយកជា CSV File"><i class="fa-solid fa-file-csv mr-1"></i>CSV</button>
+                            <button onclick="sendClassReportToTelegram()" class="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-2.5 py-2 rounded-xl transition shadow" title="ផ្ញើរបាយការណ៍ទៅ Telegram"><i class="fa-paper-plane fa-solid mr-1"></i>Telegram</button>
                         </div>
                     </div>
 
-                    <!-- Filter By Class -->
-                    <div class="bg-white rounded-2xl p-3 shadow-sm border border-slate-200 flex items-center justify-between gap-2">
-                        <label class="text-xs font-bold text-slate-700 flex items-center shrink-0">
-                            <i class="fa-solid fa-filter text-brand-600 mr-1.5"></i>ជ្រើសរើសថ្នាក់៖
-                        </label>
+                    <div class="bg-white rounded-2xl p-3 shadow-sm border border-slate-200 flex gap-2">
                         <select onchange="updateReportClassFilter(this.value)" class="w-full text-xs border border-slate-300 rounded-xl px-3 py-2 bg-white font-bold text-slate-700 focus:outline-none focus:border-brand-500">
-                            <option value="ALL" ${selectedClass==='ALL'?'selected':''}>បង្ហាញគ្រប់ថ្នាក់ទាំងអស់ (All Classes)</option>
                             ${classOptionsHtml}
                         </select>
                     </div>
 
-                    <!-- Summary Grid Cards -->
+                    <!-- Summary Cards -->
                     <div class="grid grid-cols-2 gap-2.5">
-                        <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-2xl">
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-xs font-bold text-emerald-800">មកទាន់ពេល</span>
-                                <i class="fa-solid fa-circle-check text-emerald-600 text-base"></i>
+                        <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 text-emerald-900 shadow-sm">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-bold">មកទាន់ពេល</span>
+                                <i class="fa-solid fa-circle-check text-emerald-600 text-lg"></i>
                             </div>
-                            <span class="text-xl font-bold text-emerald-900">${totalOnTime} <span class="text-xs font-normal">នាក់</span></span>
+                            <p class="text-2xl font-bold mt-2">${totalOnTime} <span class="text-xs font-normal">នាក់</span></p>
                         </div>
-                        <div class="bg-amber-50 border border-amber-200 p-3 rounded-2xl">
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-xs font-bold text-amber-800">មកយឺត</span>
-                                <i class="fa-solid fa-clock text-amber-600 text-base"></i>
+                        <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 text-amber-900 shadow-sm">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-bold">មកយឺត</span>
+                                <i class="fa-solid fa-clock text-amber-600 text-lg"></i>
                             </div>
-                            <span class="text-xl font-bold text-amber-900">${totalLate} <span class="text-xs font-normal">នាក់</span></span>
+                            <p class="text-2xl font-bold mt-2">${totalLate} <span class="text-xs font-normal">នាក់</span></p>
                         </div>
-                        <div class="bg-blue-50 border border-blue-200 p-3 rounded-2xl">
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-xs font-bold text-blue-800">សុំច្បាប់</span>
-                                <i class="fa-solid fa-file-signature text-blue-600 text-base"></i>
+                        <div class="bg-sky-50 border border-sky-200 rounded-2xl p-3.5 text-sky-900 shadow-sm">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-bold">សុំច្បាប់</span>
+                                <i class="fa-solid fa-file-lines text-sky-600 text-lg"></i>
                             </div>
-                            <span class="text-xl font-bold text-blue-900">${totalPermission} <span class="text-xs font-normal">នាក់</span></span>
+                            <p class="text-2xl font-bold mt-2">${totalPermission} <span class="text-xs font-normal">នាក់</span></p>
                         </div>
-                        <div class="bg-rose-50 border border-rose-200 p-3 rounded-2xl">
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-xs font-bold text-rose-800">អវត្តមាន</span>
-                                <i class="fa-solid fa-user-xmark text-rose-600 text-base"></i>
+                        <div class="bg-rose-50 border border-rose-200 rounded-2xl p-3.5 text-rose-900 shadow-sm">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-bold">អវត្តមាន</span>
+                                <i class="fa-solid fa-circle-xmark text-rose-600 text-lg"></i>
                             </div>
-                            <span class="text-xl font-bold text-rose-900">${totalAbsent} <span class="text-xs font-normal">នាក់</span></span>
+                            <p class="text-2xl font-bold mt-2">${totalAbsent} <span class="text-xs font-normal">នាក់</span></p>
                         </div>
                     </div>
 
-                    <!-- Attendance Table Details -->
+                    <!-- Attendance List Table Preview -->
                     <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200 space-y-3">
-                        <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-                            <h3 class="font-bold text-xs text-slate-800"><i class="fa-solid fa-list mr-1 text-brand-600"></i>បញ្ជីវត្តមានលម្អិត (${filteredAtts.length})</h3>
-                        </div>
-                        <div class="space-y-2 max-h-60 overflow-y-auto pr-1">
-                            ${filteredAtts.map(att => `
-                                <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+                        <h3 class="font-bold text-xs text-slate-800 border-b border-slate-100 pb-2">បញ្ជីវត្តមានចុងក្រោយ (${filteredAtts.length})</h3>
+                        <div class="space-y-2 max-h-60 overflow-y-auto hide-scrollbar">
+                            ${filteredAtts.map(a => `
+                                <div class="flex items-center justify-between p-2 bg-slate-50 rounded-xl text-xs">
                                     <div>
-                                        <p class="font-bold text-slate-800">${att.name} <span class="text-[10px] text-slate-400">(${att.recordId})</span></p>
-                                        <p class="text-[10px] text-slate-500">ថ្នាក់: <span class="font-bold text-slate-700">${att.classId}</span> • ${att.status}</p>
+                                        <p class="font-bold text-slate-800">${a.name}</p>
+                                        <p class="text-[10px] text-slate-500">ថ្នាក់: ${a.classId} • ${a.time}</p>
                                     </div>
-                                    <span class="text-[10px] font-mono text-slate-500">${att.time.split(' ')[1] || ''}</span>
+                                    <span class="px-2 py-1 rounded-lg text-[10px] font-bold ${a.status==='មកទាន់ពេល'?'bg-emerald-100 text-emerald-700':(a.status==='មកយឺត'?'bg-amber-100 text-amber-700':'bg-rose-100 text-rose-700')}">${a.status}</span>
                                 </div>
-                            `).join('') || '<p class="text-center text-xs text-slate-400 py-4">គ្មានទិន្នន័យវត្តមានតាមតម្រងនេះ</p>'}
+                            `).join('') || '<p class="text-center text-xs text-slate-400 py-4">គ្មានទិន្នន័យវត្តមាន</p>'}
                         </div>
                     </div>
                 </div>
             `;
         }
 
-        window.updateTimetableFilter = function(val) {
-            window.appState.selectedClassFilter = val;
+        window.updateReportClassFilter = function(classId) {
+            window.appState.selectedReportClassFilter = classId;
             renderCurrentTab();
         }
 
-        window.updateReportClassFilter = function(val) {
-            window.appState.selectedReportClassFilter = val;
-            renderCurrentTab();
-        }
-
-        // Settings Modal for Telegram Settings & Class Management
         window.openSettingsModal = function() {
-            const isAdmin = window.appState.role === 'Admin';
-            const currentRole = window.appState.role;
-
             const classChatInputsHtml = window.appState.classes.map(c => `
-                <div class="flex items-center space-x-2 my-1">
-                    <span class="w-16 font-bold text-slate-700 shrink-0">ថ្នាក់ ${c}:</span>
-                    <input type="text" id="cfg-chat-${c}" value="${window.appState.telegramConfig.classChatIds[c] || ''}" placeholder="Chat ID ឧ. -100xxx" ${!isAdmin ? 'disabled' : ''} class="flex-1 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs ${!isAdmin ? 'bg-slate-100' : ''}">
-                    ${isAdmin ? `<button onclick="removeClass('${c}')" class="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg" title="លុបថ្នាក់"><i class="fa-solid fa-trash"></i></button>` : ''}
+                <div class="flex items-center space-x-2 text-xs">
+                    <span class="w-16 font-bold text-slate-700">ថ្នាក់ ${c}:</span>
+                    <input type="text" id="cfg-chat-${c}" value="${window.appState.telegramConfig.classChatIds[c] || ''}" placeholder="-100..." class="flex-1 border border-slate-300 rounded-xl p-2 bg-white text-xs">
                 </div>
             `).join('');
+
+            const isAdmin = window.appState.role === 'Admin';
 
             const html = `
                 <div id="settings-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
                     <div class="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl space-y-4 text-xs max-h-[85vh] overflow-y-auto hide-scrollbar">
                         <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-                            <h3 class="font-bold text-slate-800 text-sm"><i class="fa-solid fa-gear text-brand-600 mr-1.5"></i>កំណត់រចនាសម្ព័ន្ធ និង Telegram Bot</h3>
+                            <h3 class="font-bold text-slate-800 text-sm flex items-center"><i class="fa-solid fa-sliders text-emerald-600 mr-2"></i>ការកំណត់ប្រព័ន្ធ (Settings)</h3>
                             <button onclick="closeModal('settings-modal')" class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
-                        </div>
-                        
-                        <!-- Role Switch Container -->
-                        <div class="bg-gradient-to-r from-emerald-800 to-green-900 text-white p-3.5 rounded-2xl flex items-center justify-between shadow">
-                            <div>
-                                <p class="text-[10px] text-emerald-200">សិទ្ធិប្រើប្រាស់បច្ចុប្បន្ន៖</p>
-                                <h4 class="font-bold text-sm flex items-center gap-1.5">
-                                    <i class="fa-solid ${isAdmin ? 'fa-user-shield text-amber-400' : 'fa-chalkboard-user text-sky-300'}"></i>
-                                    <span>${isAdmin ? 'អ្នកគ្រប់គ្រង (Admin)' : 'គ្រូបង្រៀន (Teacher)'}</span>
-                                </h4>
-                            </div>
-                            <button onclick="closeModal('settings-modal'); switchUserRolePrompt();" class="bg-white text-emerald-950 font-bold px-3 py-1.5 rounded-xl hover:bg-emerald-100 transition shadow text-[11px]">
-                                <i class="fa-solid fa-repeat mr-1"></i>ប្តូរ Role
-                            </button>
                         </div>
 
                         ${isAdmin ? `
+                            <!-- Google Sheet Webhook Sync Setting -->
+                            <div class="bg-emerald-50 p-3 rounded-2xl border border-emerald-200 space-y-2">
+                                <div class="flex justify-between items-center">
+                                    <h4 class="font-bold text-emerald-900"><i class="fa-file-csv fa-solid text-emerald-600 mr-1"></i>Google Sheet Sync (Apps Script Webhook)</h4>
+                                    <button onclick="showAppsScriptGuideModal()" class="text-[10px] bg-emerald-700 text-white px-2 py-0.5 rounded-lg font-bold">មើលកូដ Apps Script</button>
+                                </div>
+                                <input type="text" id="cfg-gsheet-url" value="${window.appState.googleSheetUrl || ''}" placeholder="https://script.google.com/macros/s/.../exec" class="w-full border border-slate-300 rounded-xl p-2.5 bg-white">
+                                <p class="text-[10px] text-emerald-700">បិទ Web App URL របស់ Google Apps Script ត្រង់នេះ ដើម្បីឱ្យប្រព័ន្ធ Push ទិន្នន័យវត្តមានចូល Google Sheet ស្វ័យប្រវត្តិ។</p>
+                            </div>
+
                             <!-- Security PIN Setting -->
                             <div class="bg-amber-50 p-3 rounded-2xl border border-amber-200 space-y-2">
                                 <h4 class="font-bold text-amber-900"><i class="fa-solid fa-shield-halved text-amber-600 mr-1"></i>លេខកូដសុវត្ថិភាព Admin (PIN Security)</h4>
                                 <input type="password" id="cfg-admin-pin" value="${window.appState.adminPin}" placeholder="បញ្ចូល PIN (ដើមគឺ 1234)" class="w-full border border-slate-300 rounded-xl p-2.5 bg-white">
-                                <p class="text-[10px] text-amber-700">លេខកូដនេះប្រើសម្រាប់ការពារពេលលុបទិន្នន័យទាំងអស់ ឬធ្វើការផ្លាស់ប្តូរសំខាន់ៗ។</p>
                             </div>
 
                             <!-- General Telegram Token -->
@@ -1758,27 +1733,9 @@
                                 <div class="flex justify-between items-center">
                                     <h4 class="font-bold text-slate-800"><i class="fa-solid fa-layer-group text-brand-600 mr-1"></i>កំណត់ Telegram Chat ID តាមថ្នាក់</h4>
                                 </div>
-                                <div class="max-h-36 overflow-y-auto pr-1">
+                                <div class="max-h-36 overflow-y-auto pr-1 space-y-1.5">
                                     ${classChatInputsHtml}
                                 </div>
-                            </div>
-
-                            <!-- Add Custom Class -->
-                            <div class="bg-emerald-50 p-3 rounded-2xl border border-emerald-200 space-y-2">
-                                <h4 class="font-bold text-emerald-900"><i class="fa-solid fa-plus text-emerald-600 mr-1"></i>បន្ថែមថ្នាក់រៀនថ្មីដោយសេរី</h4>
-                                <div class="flex space-x-2">
-                                    <input type="text" id="new-class-input" placeholder="ឧ. 7C ឬ 12C" class="flex-1 border border-slate-300 rounded-xl p-2 bg-white">
-                                    <button onclick="addNewClass()" class="bg-emerald-700 text-white font-bold px-3 py-2 rounded-xl hover:bg-emerald-800 transition">បន្ថែម</button>
-                                </div>
-                            </div>
-
-                            <!-- Danger Zone: Reset All Data -->
-                            <div class="bg-rose-50 p-3 rounded-2xl border border-rose-200 space-y-2">
-                                <h4 class="font-bold text-rose-800"><i class="fa-solid fa-triangle-exclamation text-rose-600 mr-1"></i>តំបន់គ្រោះថ្នាក់ (Danger Zone)</h4>
-                                <p class="text-[10px] text-rose-600">លុបទិន្នន័យសិស្ស, គ្រូ, វត្តមាន និងកាលវិភាគទាំងអស់ចេញពីប្រព័ន្ធ។</p>
-                                <button onclick="promptClearAllDataWithSecurity()" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 rounded-xl transition shadow">
-                                    <i class="fa-solid fa-trash-can mr-1.5"></i>លុបទិន្នន័យទាំងអស់ (Reset All Data)
-                                </button>
                             </div>
                         ` : `
                             <div class="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl space-y-2 text-center">
@@ -1795,371 +1752,136 @@
                     </div>
                 </div>
             `;
-            document.getElementById('modal-container').innerHTML = html;
+            const container = document.getElementById('modal-container');
+            if (container) container.innerHTML = html;
         }
 
-        // Show Telegram Template Preview Modal
-        window.showTelegramTemplatePreview = function() {
+        window.saveTelegramSettings = function() {
+            const pinEl = document.getElementById('cfg-admin-pin');
+            const tokenEl = document.getElementById('cfg-bot-token');
+            const chatIdEl = document.getElementById('cfg-chat-id');
+            const autoEl = document.getElementById('cfg-auto-tg');
+            const sheetUrlEl = document.getElementById('cfg-gsheet-url');
+
+            if (pinEl) window.appState.adminPin = pinEl.value.trim() || '1234';
+            if (tokenEl) window.appState.telegramConfig.botToken = tokenEl.value.trim();
+            if (chatIdEl) window.appState.telegramConfig.defaultChatId = chatIdEl.value.trim();
+            if (autoEl) window.appState.telegramConfig.autoSendOnScan = autoEl.checked;
+            if (sheetUrlEl) window.appState.googleSheetUrl = sheetUrlEl.value.trim();
+
+            window.appState.classes.forEach(c => {
+                const el = document.getElementById(`cfg-chat-${c}`);
+                if (el) window.appState.telegramConfig.classChatIds[c] = el.value.trim();
+            });
+
+            saveToLocalStorage();
+            showToast("រក្សាទុកការកំណត់បានជោគជ័យ!", "success");
+            closeModal('settings-modal');
+            updateNavActiveState();
+        }
+
+        window.showAppsScriptGuideModal = function() {
+            const scriptCode = `function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(["ID", "ឈ្មោះ", "ប្រភេទ", "ថ្នាក់", "ស្ថានភាព", "កាលបរិច្ឆេទនិងម៉ោង", "ចំណាំ"]);
+    }
+    
+    sheet.appendRow([
+      data.id,
+      data.name,
+      data.type,
+      data.classId,
+      data.status,
+      data.time,
+      data.note || ""
+    ]);
+    
+    return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT);
+  } catch (err) {
+    return ContentService.createTextOutput("Error: " + err.toString()).setMimeType(ContentService.MimeType.TEXT);
+  }
+}`;
+
             const html = `
-                <div id="tg-preview-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
-                    <div class="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl space-y-4 text-xs max-h-[85vh] overflow-y-auto hide-scrollbar">
+                <div id="guide-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+                    <div class="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl space-y-3 text-xs">
                         <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-                            <h3 class="font-bold text-slate-800 text-sm flex items-center"><i class="fa-brands fa-telegram text-sky-500 mr-2 text-base"></i>គំរូទម្រង់សារផ្ញើចូល Telegram</h3>
-                            <button onclick="closeModal('tg-preview-modal')" class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+                            <h3 class="font-bold text-slate-800 text-sm"><i class="fa-solid fa-code text-emerald-600 mr-1.5"></i>Google Apps Script Code</h3>
+                            <button onclick="closeModal('guide-modal')" class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
                         </div>
-                        
-                        <p class="text-[11px] text-slate-500">ខាងក្រោមនេះជាទម្រង់សារស្វ័យប្រវត្តិដែលប្រព័ន្ធនឹងផ្ញើចូលទៅ Telegram Group តាមថ្នាក់នីមួយៗពេលស្កែនវត្តមាន៖</p>
-
-                        <!-- Template 1: Student Scan -->
-                        <div class="bg-slate-900 text-slate-100 p-3.5 rounded-2xl space-y-1 font-mono text-[11px] border border-slate-800 shadow-md">
-                            <div class="flex justify-between items-center border-b border-slate-800 pb-1.5 mb-1 text-slate-400 font-sans text-[10px]">
-                                <span><i class="fa-solid fa-graduation-cap text-emerald-400 mr-1"></i>សារស្កែនវត្តមានសិស្ស</span>
-                                <span class="bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded border border-emerald-800">ស្វ័យប្រវត្តិ</span>
-                            </div>
-                            <p>✅ <b>ជូនដំណឹងវត្តមានសិស្ស/គ្រូ</b></p>
-                            <p>🏫 <b>វិទ្យាល័យឥស្លាមស្ទឹងត្រែង</b></p>
-                            <br>
-                            <p>👤 ឈ្មោះ: <b>នូ សុជាតា</b></p>
-                            <p>🆔 ID: <code>S-001</code></p>
-                            <p>🏫 ថ្នាក់: <b>7A</b></p>
-                            <p>📌 ស្ថានភាព: <b>មកទាន់ពេល</b></p>
-                            <p>⏰ ម៉ោង: 2026-11-03 07:15:00</p>
-                            <p>📝 ចំណាំ: ស្កែន QR ស្វ័យប្រវត្តិ</p>
-                        </div>
-
-                        <!-- Template 2: Teacher Check-in -->
-                        <div class="bg-slate-900 text-slate-100 p-3.5 rounded-2xl space-y-1 font-mono text-[11px] border border-slate-800 shadow-md">
-                            <div class="flex justify-between items-center border-b border-slate-800 pb-1.5 mb-1 text-slate-400 font-sans text-[10px]">
-                                <span><i class="fa-solid fa-chalkboard-user text-amber-400 mr-1"></i>សារគ្រូចូលបង្រៀន (Check-in)</span>
-                                <span class="bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-800">ស្វ័យប្រវត្តិ</span>
-                            </div>
-                            <p>✅ <b>ជូនដំណឹងវត្តមានសិស្ស/គ្រូ</b></p>
-                            <p>🏫 <b>វិទ្យាល័យឥស្លាមស្ទឹងត្រែង</b></p>
-                            <br>
-                            <p>👤 ឈ្មោះ: <b>លោកគ្រូ សុះ យូសុប</b></p>
-                            <p>🆔 ID: <code>T-001</code></p>
-                            <p>🏫 ថ្នាក់: <b>7A</b></p>
-                            <p>📌 ស្ថានភាព: <b>ចូលរៀន (Check-in)</b></p>
-                            <p>⏰ ម៉ោង: 2026-11-03 07:05:00</p>
-                            <p>📝 ចំណាំ: ចូលបង្រៀនម៉ោងទី ១</p>
-                        </div>
-
-                        <!-- Template 3: Summary Report -->
-                        <div class="bg-slate-900 text-slate-100 p-3.5 rounded-2xl space-y-1 font-mono text-[11px] border border-slate-800 shadow-md">
-                            <div class="flex justify-between items-center border-b border-slate-800 pb-1.5 mb-1 text-slate-400 font-sans text-[10px]">
-                                <span><i class="fa-solid fa-chart-pie text-sky-400 mr-1"></i>សាររបាយការណ៍សង្ខេបប្រចាំថ្ងៃ</span>
-                                <span class="bg-sky-950 text-sky-400 px-2 py-0.5 rounded border border-sky-800">ចុចផ្ញើ</span>
-                            </div>
-                            <p>📊 <b>របាយការណ៍សង្ខេបវត្តមានប្រចាំថ្ងៃ</b></p>
-                            <p>🏫 <b>វិទ្យាល័យឥស្លាមស្ទឹងត្រែង</b></p>
-                            <p>📅 កាលបរិច្ឆេទ: ថ្ងៃទី ០៣ ខែ វិច្ឆិកា ឆ្នាំ ២០២៦</p>
-                            <p>🏫 ថ្នាក់សិក្សា: <b>ថ្នាក់ទី 7A</b></p>
-                            <br>
-                            <p>✅ មកទាន់ពេល: <b>៣៥</b> នាក់</p>
-                            <p>⚠️ មកយឺត: <b>២</b> នាក់</p>
-                            <p>📝 សុំច្បាប់: <b>១</b> នាក់</p>
-                            <p>❌ អវត្តមាន: <b>០</b> នាក់</p>
-                            <p>👥 សរុបវត្តមាន: <b>៣៨</b> នាក់</p>
-                            <br>
-                            <p>សូមអរគុណ! 🙏</p>
-                        </div>
-
-                        <div class="flex space-x-2 pt-2">
-                            <button onclick="closeModal('tg-preview-modal')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl font-bold">បិទ</button>
+                        <p class="text-[11px] text-slate-600">សូមចម្លង (Copy) កូដខាងក្រោម យកទៅ Paste ក្នុង Google Sheet របស់អ្នក (Extensions ➔ Apps Script) រួច Deploy ជា Web App (Anyone) យក URL មកបិទក្នុង Settings ៖</p>
+                        <textarea readonly class="w-full h-40 bg-slate-900 text-emerald-400 p-3 rounded-2xl font-mono text-[10px] select-all leading-relaxed">${scriptCode}</textarea>
+                        <div class="flex justify-end pt-1">
+                            <button onclick="closeModal('guide-modal')" class="bg-brand-600 text-white font-bold px-4 py-2 rounded-xl">យល់ព្រម</button>
                         </div>
                     </div>
                 </div>
             `;
             const container = document.getElementById('modal-container');
-            if (container) {
-                container.innerHTML = html;
-            }
+            if (container) container.innerHTML = html;
         }
 
-        window.promptClearAllDataWithSecurity = function() {
-            const html = `
-                <div id="security-pin-modal" class="fixed inset-0 bg-slate-900/75 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fadeIn">
-                    <div class="bg-white w-full max-w-xs rounded-3xl p-5 shadow-2xl space-y-3 text-xs text-center">
-                        <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto text-xl">
-                            <i class="fa-solid fa-lock"></i>
-                        </div>
-                        <h3 class="font-bold text-sm text-slate-800">ផ្ទៀងផ្ទាត់លេខកូដសុវត្ថិភាព</h3>
-                        <p class="text-[11px] text-slate-500">សូមបញ្ចូលលេខកូដ PIN Admin ដើម្បីបញ្ជាក់ការលុបទិន្នន័យទាំងអស់ (Default: 1234)</p>
-                        
-                        <input type="password" id="input-security-pin" placeholder="បញ្ចូលលេខកូដ PIN" class="w-full border border-slate-300 rounded-xl p-2.5 text-center font-bold text-base tracking-widest focus:outline-none focus:border-rose-500">
-                        
-                        <div class="flex space-x-2 pt-2">
-                            <button onclick="closeModal('security-pin-modal')" class="flex-1 bg-slate-100 py-2.5 rounded-xl font-bold text-slate-700">បោះបង់</button>
-                            <button onclick="confirmResetAllData()" class="flex-1 bg-rose-600 text-white py-2.5 rounded-xl font-bold shadow">លុបទិន្នន័យ</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            const div = document.createElement('div');
-            div.id = 'sec-pin-wrapper';
-            div.innerHTML = html;
-            document.body.appendChild(div);
-        }
-
-        window.confirmResetAllData = function() {
-            const enteredPin = document.getElementById('input-security-pin').value.trim();
-            if (enteredPin !== window.appState.adminPin) {
-                showToast("លេខកូដ PIN មិនត្រឹមត្រូវឡើយ!", "error");
-                return;
-            }
-
-            // Clear local arrays
-            window.appState.students = [];
-            window.appState.teachers = [];
-            window.appState.attendance = [];
-            window.appState.timetable = [];
-
-            // Clear LocalStorage
-            localStorage.removeItem('st_students');
-            localStorage.removeItem('st_teachers');
-            localStorage.removeItem('st_attendance');
-            localStorage.removeItem('st_timetable');
-
-            showToast("បានលុបទិន្នន័យទាំងអស់ជោគជ័យ!", "success");
-            closeModal('security-pin-modal');
-            closeModal('settings-modal');
-            renderCurrentTab();
-        }
-
-        window.saveTelegramSettings = function() {
-            const token = document.getElementById('cfg-bot-token').value.trim();
-            const chatId = document.getElementById('cfg-chat-id').value.trim();
-            const pin = document.getElementById('cfg-admin-pin').value.trim();
-            const autoTgCheck = document.getElementById('cfg-auto-tg');
-
-            window.appState.telegramConfig.botToken = token;
-            window.appState.telegramConfig.defaultChatId = chatId;
-            if (autoTgCheck) {
-                window.appState.telegramConfig.autoSendOnScan = autoTgCheck.checked;
-            }
-            if (pin) {
-                window.appState.adminPin = pin;
-                localStorage.setItem('st_admin_pin', pin);
-            }
-
-            // Save class-specific Chat IDs
-            window.appState.classes.forEach(c => {
-                const el = document.getElementById(`cfg-chat-${c}`);
-                if (el) {
-                    window.appState.telegramConfig.classChatIds[c] = el.value.trim();
-                }
-            });
-
-            saveToLocalStorage();
-            updateNavActiveState();
-            showToast("រក្សាទុកការកំណត់ Telegram ទាំងអស់ជោគជ័យ!", "success");
-            closeModal('settings-modal');
-            renderCurrentTab();
-        }
-
-        window.testTelegramConnection = function() {
-            const token = document.getElementById('cfg-bot-token').value.trim() || window.appState.telegramConfig.botToken;
-            const chatId = document.getElementById('cfg-chat-id').value.trim() || window.appState.telegramConfig.defaultChatId;
-
-            if (!token || !chatId) {
-                showToast("សូមបញ្ចូល Telegram Bot Token និង Chat ID ជាមុនសិន!", "error");
-                return;
-            }
-
-            const now = new Date().toLocaleString('km-KH');
-            const msg = `🧪 *សារសាកល្បងការតភ្ជាប់ (Test Message)*\n🏫 *វិទ្យាល័យឥស្លាមស្ទឹងត្រែង*\n⏰ ម៉ោង: ${now}\n\n✅ ប្រព័ន្ធតភ្ជាប់ជាមួយ Telegram Bot បានជោគជ័យ ១០០%!`;
-
-            showToast("កំពុងផ្ញើសារសាកល្បង...", "info");
-
-            fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    chat_id: chatId,
-                    text: msg,
-                    parse_mode: 'Markdown'
-                })
-            }).then(res => res.json())
-            .then(data => {
-                if (data.ok) {
-                    showToast("ផ្ញើសារសាកល្បងទៅ Telegram ជោគជ័យ! សូមពិនិត្យមើលក្នុង Telegram", "success");
-                } else {
-                    showToast("បរាជ័យ! " + (data.description || "សូមពិនិត្យ Bot Token ឬ Chat ID"), "error");
-                }
-            }).catch(e => {
-                showToast("មានបញ្ហាក្នុងការតភ្ជាប់អ៊ីនធឺណិត ឬ Telegram API!", "error");
-            });
-        }
-
-        window.sendClassReportToTelegram = function() {
-            const token = window.appState.telegramConfig.botToken;
-            const selectedClass = window.appState.selectedReportClassFilter || 'ALL';
-            const classChatId = window.appState.telegramConfig.classChatIds[selectedClass];
-            const chatId = classChatId || window.appState.telegramConfig.defaultChatId;
-
-            if (!token || !chatId) {
-                showToast("សូមកំណត់ Telegram Bot Token និង Chat ID ក្នុង Setting ជាមុនសិន!", "error");
-                openSettingsModal();
-                return;
-            }
-
-            const atts = window.appState.attendance;
-            const filteredAtts = selectedClass === 'ALL' ? atts : atts.filter(a => a.classId === selectedClass);
-
-            const totalOnTime = filteredAtts.filter(a => a.status === 'មកទាន់ពេល').length;
-            const totalLate = filteredAtts.filter(a => a.status === 'មកយឺត').length;
-            const totalPermission = filteredAtts.filter(a => a.status === 'សុំច្បាប់').length;
-            const totalAbsent = filteredAtts.filter(a => a.status === 'អវត្តមាន').length;
-
-            const today = new Date().toLocaleDateString('km-KH', { year: 'numeric', month: 'long', day: 'numeric' });
-
-            const msg = `📊 *របាយការណ៍សង្ខេបវត្តមានប្រចាំថ្ងៃ*\n🏫 *វិទ្យាល័យឥស្លាមស្ទឹងត្រែង*\n📅 កាលបរិច្ឆេទ: ${today}\n🏫 ថ្នាក់សិក្សា: *${selectedClass === 'ALL' ? 'គ្រប់ថ្នាក់ទាំងអស់' : 'ថ្នាក់ទី ' + selectedClass}*\n\n✅ មកទាន់ពេល: *${totalOnTime}* នាក់\n⚠️ មកយឺត: *${totalLate}* នាក់\n📝 សុំច្បាប់: *${totalPermission}* នាក់\n❌ អវត្តមាន: *${totalAbsent}* នាក់\n👥 សរុបវត្តមាន: *${filteredAtts.length}* នាក់\n\nសូមអរគុណ! 🙏`;
-
-            fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    chat_id: chatId,
-                    text: msg,
-                    parse_mode: 'Markdown'
-                })
-            }).then(res => res.json())
-            .then(data => {
-                if (data.ok) {
-                    showToast(`ផ្ញើរបាយការណ៍${selectedClass !== 'ALL' ? 'ថ្នាក់ ' + selectedClass : ''} ទៅ Telegram រួចរាល់!`, "success");
-                } else {
-                    showToast("បរាជ័យក្នុងការផ្ញើសារ! សូមពិនិត្យ Bot Token / Chat ID", "error");
-                }
-            }).catch(e => {
-                showToast("មានបញ្ហាក្នុងការតភ្ជាប់ Telegram!", "error");
-            });
-        }
-
-        window.exportToExcel = function() {
-            try {
-                const workbook = XLSX.utils.book_new();
-                const sData = window.appState.students.map(s => ({ 'ID': s.id, 'ឈ្មោះ': s.name, 'ភេទ': s.gender, 'ថ្នាក់': s.classId, 'ទូរស័ព្ទអាណាព្យាបាល': s.parentPhone }));
-                const tData = window.appState.teachers.map(t => ({ 'ID': t.id, 'ឈ្មោះ': t.name, 'មុខវិជ្ជា': t.subject, 'ទូរស័ព្ទ': t.phone }));
-                
-                XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(sData), "Students");
-                XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(tData), "Teachers");
-                XLSX.writeFile(workbook, `SteungTreng_Islamic_School_People_${new Date().toISOString().slice(0,10)}.xlsx`);
-                showToast("ទាញយកបញ្ជីសិស្ស-គ្រូជា Excel បានជោគជ័យ!", "success");
-            } catch (e) {
-                showToast("បញ្ហាក្នុងការទាញយក Excel", "error");
-            }
-        }
-
-        window.closeModal = function(id) {
-            const modal = document.getElementById(id);
-            if (modal) modal.remove();
-        }
-
-        window.showToast = function(message, type = 'success') {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            toast.className = `pointer-events-auto p-3.5 rounded-2xl shadow-xl text-xs font-bold text-white flex items-center justify-between transition transform translate-y-2 opacity-0 animate-fadeIn ${type === 'success' ? 'bg-emerald-600' : 'bg-rose-600'}`;
-            toast.innerHTML = `
-                <div class="flex items-center space-x-2">
-                    <i class="fa-solid ${type === 'success' ? 'fa-circle-check text-base' : 'fa-triangle-exclamation text-base'}"></i>
-                    <span>${message}</span>
-                </div>
-            `;
-            container.appendChild(toast);
-            setTimeout(() => { toast.classList.remove('translate-y-2', 'opacity-0'); }, 10);
-            setTimeout(() => {
-                toast.classList.add('opacity-0', 'translate-y-2');
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
-        }
-
-        // Run on load
-        window.onload = initApp;
-
-        // --- 1. SCANNER VIEW ---
+        // --- SCANNER VIEW (Dynamic Tab 1) ---
         function renderScannerView() {
             const mode = window.appState.scannerMode;
-            const isCamActive = window.appState.isCameraActive;
             return `
                 <div class="p-4 space-y-4">
-                    <div class="bg-white rounded-2xl p-3 shadow-sm border border-slate-200 flex justify-between items-center">
-                        <div>
-                            <h2 class="font-bold text-xs text-slate-800"><i class="fa-solid fa-qrcode text-brand-600 mr-1.5"></i>ស្កែន QR វត្តមាន</h2>
-                            <p class="text-[10px] text-slate-500">ស្កែនប័ណ្ណសិស្ស ឬ គ្រូដើម្បីកត់វត្តមាន</p>
+                    <div class="bg-gradient-to-r from-emerald-900 to-green-900 text-white rounded-3xl p-4 shadow-lg space-y-3">
+                        <div class="flex justify-between items-center">
+                            <h2 class="font-bold text-xs uppercase tracking-wider text-emerald-300"><i class="fa-solid fa-camera mr-1.5"></i>ម៉ាស៊ីនស្កែន QR វត្តមាន</h2>
+                            <span class="bg-emerald-500/30 border border-emerald-400/30 text-emerald-200 text-[10px] px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> ដំណើរការ
+                            </span>
                         </div>
-                        <button onclick="toggleCameraState()" class="px-3 py-1.5 ${isCamActive ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white rounded-xl text-xs font-bold transition shadow flex items-center gap-1.5">
-                            <i class="fa-solid ${isCamActive ? 'fa-video-slash' : 'fa-video'}"></i>
-                            <span>${isCamActive ? 'បិទកាមេរ៉ា' : 'បើកកាមេរ៉ា'}</span>
-                        </button>
-                    </div>
-
-                    <!-- Mode Selector Buttons -->
-                    <div class="grid grid-cols-3 gap-2 bg-slate-200 p-1.5 rounded-2xl">
-                        <button onclick="setScannerMode('student')" class="py-2 text-xs font-bold rounded-xl transition ${mode==='student'?'bg-white text-emerald-700 shadow':'text-slate-600 hover:text-slate-900'}">
-                            <i class="fa-solid fa-graduation-cap mr-1"></i>សិស្ស
-                        </button>
-                        <button onclick="setScannerMode('teacher_in')" class="py-2 text-xs font-bold rounded-xl transition ${mode==='teacher_in'?'bg-white text-emerald-700 shadow':'text-slate-600 hover:text-slate-900'}">
-                            <i class="fa-solid fa-chalkboard-user mr-1"></i>គ្រូចូលរៀន
-                        </button>
-                        <button onclick="setScannerMode('teacher_out')" class="py-2 text-xs font-bold rounded-xl transition ${mode==='teacher_out'?'bg-white text-emerald-700 shadow':'text-slate-600 hover:text-slate-900'}">
-                            <i class="fa-solid fa-door-open mr-1"></i>គ្រូចេញរៀន
-                        </button>
-                    </div>
-
-                    <!-- QR Code Camera Box Container -->
-                    <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 text-center relative overflow-hidden">
-                        ${isCamActive ? `
-                            <div id="reader" class="w-full max-w-xs mx-auto rounded-xl overflow-hidden border-2 border-emerald-500 shadow-inner"></div>
-                        ` : `
-                            <div class="w-full h-64 bg-slate-100 rounded-2xl flex flex-col items-center justify-center space-y-2 border-2 border-slate-200">
-                                <i class="fa-solid fa-video-slash text-4xl text-slate-400"></i>
-                                <p class="text-xs font-bold text-slate-600">កាមេរ៉ាត្រូវ បានបិទ</p>
-                                <button onclick="toggleCameraState()" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold shadow">បើកកាមេរ៉ាឡើងវិញ</button>
-                            </div>
-                        `}
-                        <div class="mt-3 flex items-center justify-center space-x-2 text-[11px] text-slate-500 font-medium">
-                            <i class="fa-solid fa-bolt text-amber-500 animate-pulse"></i>
-                            <span>Auto Recognition Mode (&lt; 1 វិនាទី)</span>
+                        <div class="grid grid-cols-3 gap-1.5 bg-emerald-950/60 p-1.5 rounded-2xl border border-emerald-800">
+                            <button onclick="setScannerMode('student')" class="py-2 rounded-xl text-[11px] font-bold transition ${mode==='student'?'bg-emerald-500 text-slate-950 shadow':'text-emerald-200 hover:bg-emerald-800/50'}">
+                                <i class="fa-solid fa-graduation-cap mr-1"></i>សិស្ស
+                            </button>
+                            <button onclick="setScannerMode('teacher_in')" class="py-2 rounded-xl text-[11px] font-bold transition ${mode==='teacher_in'?'bg-emerald-500 text-slate-950 shadow':'text-emerald-200 hover:bg-emerald-800/50'}">
+                                <i class="fa-solid fa-right-to-bracket mr-1"></i>គ្រូ Check-in
+                            </button>
+                            <button onclick="setScannerMode('teacher_out')" class="py-2 rounded-xl text-[11px] font-bold transition ${mode==='teacher_out'?'bg-emerald-500 text-slate-950 shadow':'text-emerald-200 hover:bg-emerald-800/50'}">
+                                <i class="fa-solid fa-right-from-bracket mr-1"></i>គ្រូ Check-out
+                            </button>
                         </div>
                     </div>
 
-                    <!-- Quick Manual Entry Input -->
-                    <div class="bg-white rounded-2xl p-3 shadow-sm border border-slate-200 space-y-2">
-                        <label class="block text-xs font-bold text-slate-700"><i class="fa-solid fa-keyboard text-brand-600 mr-1"></i>ស្កែនដោយវាយបញ្ចូល ID</label>
+                    <div class="bg-white rounded-3xl p-3 shadow-sm border border-slate-200 flex flex-col items-center relative overflow-hidden">
+                        <div id="reader" class="w-full h-64 rounded-2xl bg-slate-900 overflow-hidden relative shadow-inner border border-slate-200"></div>
+                        <p class="text-[10px] text-slate-400 mt-2 text-center"><i class="fa-solid fa-expand mr-1"></i>តម្រង់កាមេរ៉ាលើ QR Code ដើម្បីកត់វត្តមានស្វ័យប្រវត្តិ</p>
+                    </div>
+
+                    <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200 space-y-2">
+                        <label class="block font-bold text-xs text-slate-700"><i class="fa-solid fa-keyboard text-brand-600 mr-1"></i>បញ្ចូល ID ដោយដៃ (Quick Manual Input)</label>
                         <div class="flex space-x-2">
-                            <input type="text" id="manual-quick-id" placeholder="បញ្ចូល ID (ឧ. S-001 ឬ T-001)" class="flex-1 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-brand-500">
-                            <button onclick="processManualQuickId()" class="bg-brand-600 text-white font-bold px-4 py-2 rounded-xl text-xs shadow hover:bg-brand-700 transition">បញ្ចូល</button>
+                            <input type="text" id="manual-quick-id" placeholder="បញ្ចូល ID សិស្ស ឬ គ្រូ..." class="flex-1 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-brand-500 font-bold">
+                            <button onclick="processManualQuickId()" class="bg-brand-600 hover:bg-brand-700 text-white font-bold px-4 py-2 rounded-xl text-xs shadow transition">បញ្ចូល</button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200 space-y-2">
+                        <h3 class="font-bold text-xs text-slate-800 border-b border-slate-100 pb-2 flex justify-between items-center">
+                            <span><i class="fa-solid fa-history text-amber-500 mr-1.5"></i>វត្តមានចុងក្រោយក្នុងប្រព័ន្ធ</span>
+                            <span class="text-[10px] text-slate-400 font-normal">(${window.appState.attendance.length})</span>
+                        </h3>
+                        <div class="space-y-1.5 max-h-40 overflow-y-auto hide-scrollbar">
+                            ${window.appState.attendance.slice(0, 5).map(a => `
+                                <div class="flex justify-between items-center p-2 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+                                    <div>
+                                        <p class="font-bold text-slate-800">${a.name} <span class="text-[10px] font-normal text-slate-500">(${a.classId})</span></p>
+                                        <p class="text-[10px] text-emerald-600 font-medium">${a.status} • ${a.time.split(' ')[1]}</p>
+                                    </div>
+                                    <span class="text-[9px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-lg font-bold">${a.type}</span>
+                                </div>
+                            `).join('') || '<p class="text-center text-xs text-slate-400 py-3">មិនទាន់មានវត្តមាននៅឡើយ</p>'}
                         </div>
                     </div>
                 </div>
             `;
-        }
-
-        // Render Current Tab View Switcher
-        function renderCurrentTab() {
-            const main = document.getElementById('main-content');
-            if (!main) return;
-            switch(window.appState.currentTab) {
-                case 'scanner':
-                    main.innerHTML = renderScannerView();
-                    initQrScanner();
-                    break;
-                case 'attendance':
-                    main.innerHTML = renderAttendanceView();
-                    break;
-                case 'people':
-                    main.innerHTML = renderPeopleView();
-                    break;
-                case 'timetable':
-                    main.innerHTML = renderTimetableView();
-                    break;
-                case 'reports':
-                    main.innerHTML = renderReportsView();
-                    break;
-                default:
-                    main.innerHTML = renderScannerView();
-                    initQrScanner();
-            }
         }
 
         window.setScannerMode = function(mode) {
@@ -2167,89 +1889,166 @@
             renderCurrentTab();
         }
 
-        window.toggleCameraState = async function() {
-            window.appState.isCameraActive = !window.appState.isCameraActive;
-            if (!window.appState.isCameraActive) {
-                await stopCameraStream();
-            }
-            renderCurrentTab();
-        }
+        // Master Tab Switch Handler Engine
+        function renderCurrentTab() {
+            const main = document.getElementById('main-content');
+            if (!main) return;
 
-        window.addNewClass = function() {
-            const input = document.getElementById('new-class-input');
-            if (!input) return;
-            const newCls = input.value.trim().toUpperCase();
-            if (!newCls) {
-                showToast("សូមបញ្ចូលឈ្មោះថ្នាក់!", "error");
-                return;
-            }
-            if (window.appState.classes.includes(newCls)) {
-                showToast("ថ្នាក់នេះមានក្នុងប្រព័ន្ធរួចហើយ!", "error");
-                return;
-            }
-            window.appState.classes.push(newCls);
-            saveToLocalStorage();
-            showToast(`បានបន្ថែមថ្នាក់ ${newCls} ជោគជ័យ!`, "success");
-            openSettingsModal();
-        }
+            const current = window.appState.currentTab;
 
-        window.removeClass = function(clsName) {
-            if (confirm(`តើអ្នកពិតជាចង់លុបថ្នាក់ ${clsName} មែនទេ?`)) {
-                window.appState.classes = window.appState.classes.filter(c => c !== clsName);
-                saveToLocalStorage();
-                showToast(`បានលុបថ្នាក់ ${clsName}`, "success");
-                openSettingsModal();
+            if (current === 'scanner') {
+                main.innerHTML = renderScannerView();
+                initQrScanner();
+            } else if (current === 'attendance') {
+                main.innerHTML = renderAttendanceView();
+            } else if (current === 'people') {
+                main.innerHTML = renderPeopleView();
+            } else if (current === 'timetable') {
+                main.innerHTML = renderTimetableView();
+            } else if (current === 'reports') {
+                main.innerHTML = renderReportsView();
             }
         }
 
-        function sendTelegramNotification(record) {
-            // Check if auto send is enabled
-            if (!window.appState.telegramConfig.autoSendOnScan) return;
+        // Helper Notification & Modal Tools
+        window.showToast = function(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
 
-            const token = window.appState.telegramConfig.botToken;
-            const classChatId = window.appState.telegramConfig.classChatIds[record.classId];
-            const chatId = classChatId || window.appState.telegramConfig.defaultChatId;
+            const colors = {
+                success: 'bg-emerald-600 text-white',
+                error: 'bg-rose-600 text-white',
+                info: 'bg-slate-800 text-white'
+            };
 
-            if (!token || !chatId) return;
+            const toast = document.createElement('div');
+            toast.className = `${colors[type] || colors.info} p-3 rounded-2xl shadow-xl text-xs font-bold flex items-center justify-between transition-all duration-300 transform translate-y-2 pointer-events-auto border border-white/20`;
+            toast.innerHTML = `
+                <span>${msg}</span>
+                <button onclick="this.parentElement.remove()" class="ml-3 text-white/80 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            `;
+            container.appendChild(toast);
 
-            const icon = record.status === 'មកទាន់ពេល' ? '✅' : (record.status === 'មកយឺត' ? '⚠️' : '📝');
-            
-            // Find teacher and subject details
-            let teacherInfo = '';
-            let subjectInfo = '';
+            setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
 
-            if (record.type === 'student') {
-                // Find timetable match for student's class
-                const dayNames = ['អាទិត្យ', 'ចន្ទ', 'អង្គារ', 'ពុធ', 'ព្រហស្បតិ៍', 'សុក្រ', 'សៅរ៍'];
-                const currentDay = dayNames[new Date().getDay()];
-                const matchedSchedule = window.appState.timetable.find(t => t.classId === record.classId && t.day === currentDay);
-                
-                if (matchedSchedule) {
-                    teacherInfo = matchedSchedule.teacher || 'មិនទាន់កំណត់';
-                    subjectInfo = matchedSchedule.subject || 'មិនទាន់កំណត់';
-                } else {
-                    teacherInfo = 'មិនទាន់កំណត់';
-                    subjectInfo = 'មិនទាន់កំណត់';
-                }
-            } else {
-                // Find teacher's subject directly
-                const teacherObj = window.appState.teachers.find(t => t.id === record.recordId);
-                teacherInfo = record.name;
-                subjectInfo = teacherObj ? teacherObj.subject : 'ទូទៅ';
-            }
+        window.closeModal = function(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) modal.remove();
+        }
 
-            const msg = `${icon} *ជូនដំណឹងវត្តមានសិស្ស/គ្រូ*\n🏫 *វិទ្យាល័យឥស្លាមស្ទឹងត្រែង*\n\n👤 ឈ្មោះ: *${record.name}*\n🆔 ID: \`${record.recordId}\`\n🏫 ថ្នាក់: *${record.classId}*\n📚 មុខវិជ្ជា: *${subjectInfo}*\n👨‍🏫 គ្រូបង្រៀន: *${teacherInfo}*\n📌 ស្ថានភាព: *${record.status}*\n⏰ ម៉ោង: ${record.time}\n${record.note ? '📝 ចំណាំ: ' + record.note : ''}`;
+        window.sendTelegramNotification = function(record) {
+            const cfg = window.appState.telegramConfig;
+            if (!cfg.autoSendOnScan || !cfg.botToken) return;
 
-            fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+            const targetChatId = cfg.classChatIds[record.classId] || cfg.defaultChatId;
+            if (!targetChatId) return;
+
+            const text = `🔔 *វត្តមានសាលារៀន - វិទ្យាល័យឥស្លាមស្ទឹងត្រែង*\n\n` +
+                         `👤 *ឈ្មោះ:* ${record.name}\n` +
+                         `🆔 *ID:* \`${record.recordId}\`\n` +
+                         `🏫 *ថ្នាក់/មុខវិជ្ជា:* ${record.classId}\n` +
+                         `📌 *ស្ថានភាព:* ${record.status}\n` +
+                         `⏰ *ម៉ោង:* ${record.time}`;
+
+            const url = `https://api.telegram.org/bot${cfg.botToken}/sendMessage`;
+            fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    chat_id: chatId,
-                    text: msg,
-                    parse_mode: 'Markdown'
-                })
-            }).catch(e => console.log("Telegram notification error:", e));
+                body: JSON.stringify({ chat_id: targetChatId, text: text, parse_mode: 'Markdown' })
+            }).catch(e => console.log("Telegram send note:", e));
         }
+
+        window.sendClassReportToTelegram = function() {
+            const cfg = window.appState.telegramConfig;
+            if (!cfg.botToken || !cfg.defaultChatId) {
+                showToast("សូមរៀបចំ Telegram Bot Token និង Chat ID ក្នុង Settings ជាមុនសិន!", "error");
+                return;
+            }
+
+            const atts = window.appState.attendance;
+            const text = `📊 *របាយការណ៍សង្ខេបវត្តមានសរុប*\n\n` +
+                         `សរុបវត្តមាន៖ ${atts.length} នាក់\n` +
+                         `មកទាន់ពេល៖ ${atts.filter(a=>a.status==='មកទាន់ពេល').length} នាក់\n` +
+                         `មកយឺត៖ ${atts.filter(a=>a.status==='មកយឺត').length} នាក់\n` +
+                         `សុំច្បាប់/អវត្តមាន៖ ${atts.filter(a=>a.status==='សុំច្បាប់'||a.status==='អវត្តមាន').length} នាក់`;
+
+            const url = `https://api.telegram.org/bot${cfg.botToken}/sendMessage`;
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: cfg.defaultChatId, text: text, parse_mode: 'Markdown' })
+            }).then(() => showToast("ផ្ញើរបាយការណ៍ទៅ Telegram ជោគជ័យ!", "success"))
+              .catch(() => showToast("មានបញ្ហាក្នុងការផ្ញើទៅ Telegram", "error"));
+        }
+
+        window.downloadBackupJson = function() {
+            const data = {
+                students: window.appState.students,
+                teachers: window.appState.teachers,
+                attendance: window.appState.attendance,
+                timetable: window.appState.timetable
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ST_School_Backup_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            showToast("ទាញយក Backup File ជោគជ័យ!", "success");
+        }
+
+        window.exportToExcel = function() {
+            try {
+                if (typeof XLSX === 'undefined') {
+                    showToast("កំពុងទាញយក Library... សូមព្យាយាមម្តងទៀត", "info");
+                    return;
+                }
+                const wb = XLSX.utils.book_new();
+                const attData = window.appState.attendance.map(a => ({
+                    ID: a.recordId,
+                    ឈ្មោះ: a.name,
+                    ប្រភេទ: a.type,
+                    ថ្នាក់: a.classId,
+                    ស្ថានភាព: a.status,
+                    កាលបរិច្ឆេទ: a.time,
+                    ចំណាំ: a.note || ''
+                }));
+                const ws = XLSX.utils.json_to_sheet(attData);
+                XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+                XLSX.writeFile(wb, `Attendance_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
+                showToast("ទាញយក Excel File ជោគជ័យ!", "success");
+            } catch (e) {
+                console.error("Excel Export error:", e);
+                showToast("បញ្ហាក្នុងការបង្កើត Excel File", "error");
+            }
+        }
+
+        window.testTelegramConnection = function() {
+            const token = document.getElementById('cfg-bot-token').value.trim();
+            const chatId = document.getElementById('cfg-chat-id').value.trim();
+            if (!token || !chatId) {
+                showToast("សូមបញ្ចូល Bot Token និង Chat ID ជាមុនសិន!", "error");
+                return;
+            }
+            const url = `https://api.telegram.org/bot${token}/sendMessage`;
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: chatId, text: "✅ សាកល្បងភ្ជាប់ប្រព័ន្ធវត្តមាន វិទ្យាល័យឥស្លាមស្ទឹងត្រែង ជោគជ័យ!" })
+            }).then(r => r.json()).then(res => {
+                if (res.ok) showToast("ផ្ញើសារសាកល្បងទៅ Telegram ជោគជ័យ!", "success");
+                else showToast("មិនអាចផ្ញើបាន៖ " + (res.description || "Error"), "error");
+            }).catch(() => showToast("មានបញ្ហាក្នុងការភ្ជាប់ទៅ Telegram", "error"));
+        }
+
+        // Initialize application on window load
+        window.addEventListener('DOMContentLoaded', () => {
+            initApp();
+        });
     </script>
 </body>
 </html>
