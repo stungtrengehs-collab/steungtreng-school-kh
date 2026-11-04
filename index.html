@@ -61,7 +61,7 @@
     <!-- Toast Notification Container -->
     <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none max-w-sm w-full px-4"></div>
 
-    <!-- App Wrapper (Mobile Frame emulation on desktop, full screen on mobile) -->
+    <!-- App Wrapper -->
     <div id="app-root" class="w-full max-w-md mx-auto bg-slate-50 h-full flex flex-col shadow-2xl relative overflow-hidden">
 
         <!-- Top Header Bar -->
@@ -101,7 +101,7 @@
             <!-- Dynamic tab views will be injected here -->
         </main>
 
-        <!-- Bottom Navigation Bar (Mobile App Style) -->
+        <!-- Bottom Navigation Bar -->
         <nav class="absolute bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur-md border-t border-emerald-900/40 px-3 py-2 flex justify-around items-center z-30 shadow-2xl">
             <button onclick="switchTab('scanner')" id="nav-btn-scanner" class="flex flex-col items-center justify-center w-14 py-1 text-emerald-400 font-medium transition-all duration-200 hover:scale-105 active:scale-95">
                 <i class="fa-solid fa-qrcode text-lg mb-0.5"></i>
@@ -136,7 +136,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, getDocs, onSnapshot, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Global State Initialization Guard ( Fix Runtime Crash)
+        // Global State Initialization Guard
         window.appState = {
             currentTab: 'scanner',
             role: 'Admin',
@@ -150,7 +150,7 @@
             teachers: JSON.parse(localStorage.getItem('st_teachers') || '[]'),
             attendance: JSON.parse(localStorage.getItem('st_attendance') || '[]'),
             timetable: JSON.parse(localStorage.getItem('st_timetable') || '[]'),
-            googleSheetUrl: localStorage.getItem('st_gsheet_url') || '',
+            googleSheetUrl: localStorage.getItem('st_gsheet_url') || 'https://script.google.com/macros/s/AKfycbyhca0dGNj8CV41xUzZZcGUplmuoAQ3kCzg2jN0M8VLo3Gva1RDzlKPcpx4CZNC-0zPsw/exec',
             telegramConfig: {
                 botToken: localStorage.getItem('st_bot_token') || '',
                 defaultChatId: localStorage.getItem('st_chat_id') || '',
@@ -159,10 +159,8 @@
             }
         };
 
-        // Global Firebase configs
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'steung-treng-islamic-school-v1';
         
-        // 🔗 Firebase Configuration Credential (Project: hanastungtreng1111)
         const firebaseConfig = {
             apiKey: "AIzaSyAAQJ3bGUB_XR6Z4hSsKV_XLfYh8-tl15c",
             authDomain: "hanastungtreng1111.firebaseapp.com",
@@ -190,7 +188,6 @@
             }
         }
 
-        // Safe Initialize Firebase SDKs & Auth Engine
         async function initApp() {
             try {
                 loadLocalMockData();
@@ -351,7 +348,6 @@
             showToast(window.appState.telegramConfig.autoSendOnScan ? "បានបើកសារស្វ័យប្រវត្តិទៅ Telegram" : "បានបិទសារស្វ័យប្រវត្តិទៅ Telegram", "info");
         }
 
-        // --- User Role Switch Helper ---
         window.switchUserRolePrompt = function() {
             const currentRole = window.appState.role;
             if (currentRole === 'Admin') {
@@ -465,7 +461,6 @@
 
         function initQrScanner() {
             if (!window.appState.isCameraActive) return;
-            // Delay slightly to ensure reader element exists in DOM
             setTimeout(() => {
                 startScannerInstance();
             }, 250);
@@ -528,13 +523,11 @@
         }
 
         function handleScannedResult(rawCode) {
-            // Prevent fast repetitive scans with a delay lock
             if (isProcessingScan) return;
             isProcessingScan = true;
 
             let code = rawCode.trim();
 
-            // 🔄 Check if this is a QR Sync Payload from another device
             if (code.includes('SYNC_DATA') || code.includes('"type":"SYNC_DATA"')) {
                 try {
                     const syncObj = JSON.parse(code);
@@ -548,7 +541,6 @@
                 }
             }
 
-            // Support JSON string format inside complex/dense QR codes
             if (code.startsWith('{') && code.endsWith('}')) {
                 try {
                     const parsed = JSON.parse(code);
@@ -568,7 +560,6 @@
             let target = null;
             let typeName = '';
 
-            // Flexible Multi-format search (ID, Name, Phone matching)
             if (mode === 'student') {
                 target = window.appState.students.find(s => 
                     s.id.toLowerCase() === lowerCode || 
@@ -585,7 +576,6 @@
                 typeName = mode;
             }
 
-            // Fallback for custom or external QR codes
             if (!target) {
                 target = { 
                     id: code, 
@@ -595,7 +585,6 @@
                 };
             }
 
-            // Get exact local timestamp (YYYY-MM-DD HH:mm:ss) matching device clock
             const now = new Date();
             const year = now.getFullYear();
             const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -625,294 +614,38 @@
             showToast(`កត់ត្រាជោគជ័យ៖ ${target.name} (${record.status})`, "success");
         }
 
-        // 📊 Export to CSV file
-        window.exportToCSV = function() {
-            try {
-                const atts = window.appState.attendance;
-                if (atts.length === 0) {
-                    showToast("គ្មានទិន្នន័យវត្តមានសម្រាប់ Export ជា CSV ឡើយ!", "error");
-                    return;
-                }
-                let csvContent = "\uFEFF"; // UTF-8 BOM for Khmer text
-                csvContent += "ID,ឈ្មោះ,ប្រភេទ,ថ្នាក់,ស្ថានភាព,កាលបរិច្ឆេទនិងម៉ោង,ចំណាំ\n";
-                
-                atts.forEach(a => {
-                    const row = [
-                        `"${a.recordId}"`,
-                        `"${a.name}"`,
-                        `"${a.type}"`,
-                        `"${a.classId}"`,
-                        `"${a.status}"`,
-                        `"${a.time}"`,
-                        `"${a.note || ''}"`
-                    ];
-                    csvContent += row.join(",") + "\n";
-                });
-
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement("a");
-                link.setAttribute("href", url);
-                link.setAttribute("download", `Attendance_Export_${new Date().toISOString().slice(0,10)}.csv`);
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                showToast("ទាញយកទិន្នន័យជា File CSV ជោគជ័យ!", "success");
-            } catch (e) {
-                console.error("CSV Export error:", e);
-                showToast("បញ្ហាក្នុងការបង្កើត CSV File", "error");
-            }
-        }
-
-        // 🔗 Send Data directly to Google Sheet Webhook (Apps Script)
-        function sendGoogleSheetNotification(record) {
-            const sheetUrl = window.appState.googleSheetUrl;
-            if (!sheetUrl) return;
-
-            const payload = {
-                id: record.recordId,
-                name: record.name,
-                type: record.type,
-                classId: record.classId,
-                status: record.status,
-                time: record.time,
-                note: record.note || ''
-            };
-
-            fetch(sheetUrl, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            }).catch(e => console.log("Google Sheet sync note:", e));
-        }
-
-        // --- 2. ATTENDANCE MANAGEMENT VIEW ---
-        function renderAttendanceView() {
-            const atts = window.appState.attendance;
-            const isAdmin = window.appState.role === 'Admin';
-            return `
-                <div class="p-4 space-y-4">
-                    <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex justify-between items-center">
-                        <div>
-                            <h2 class="font-bold text-sm text-slate-800"><i class="fa-solid fa-clipboard-user mr-1.5 text-brand-600"></i>ប្រព័ន្ធគ្រប់គ្រងវត្តមាន</h2>
-                            <p class="text-[11px] text-slate-500">សរុបកំណត់ត្រា៖ ${atts.length} នាក់</p>
-                        </div>
-                        <button onclick="openManualAttendanceModal()" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow">
-                            <i class="fa-solid fa-plus mr-1"></i>កត់វត្តមានដោយដៃ
-                        </button>
-                    </div>
-
-                    <div class="space-y-2.5" id="attendance-list-container">
-                        ${atts.map(att => `
-                            <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200 flex items-center justify-between">
-                                <div class="flex items-center space-x-3">
-                                    <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-sm border border-emerald-100">
-                                        <i class="fa-solid ${att.type.includes('teacher') ? 'fa-chalkboard-user text-amber-600 bg-amber-50' : 'fa-user-check'}"></i>
-                                    </div>
-                                    <div>
-                                        <h4 class="font-bold text-xs text-slate-800">${att.name} <span class="text-[10px] text-slate-400 font-normal">(${att.recordId})</span></h4>
-                                        <p class="text-[10px] text-slate-500">ថ្នាក់: <span class="font-bold text-slate-700">${att.classId}</span> • <span class="text-brand-600 font-medium">${att.status}</span></p>
-                                        ${att.note ? `<p class="text-[10px] text-slate-400 italic">ចំណាំ: ${att.note}</p>` : ''}
-                                    </div>
-                                </div>
-                                <div class="flex flex-col items-end space-y-1">
-                                    <span class="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg">${att.time.split(' ')[1]}</span>
-                                    ${isAdmin ? `
-                                        <div class="flex space-x-1">
-                                            <button onclick="openEditAttendanceModal('${att.id}')" class="text-sky-600 hover:bg-sky-50 p-1.5 rounded-lg text-xs" title="កែប្រែ"><i class="fa-solid fa-pen"></i></button>
-                                            <button onclick="deleteAttendance('${att.id}')" class="text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg text-xs" title="លុប"><i class="fa-solid fa-trash"></i></button>
-                                        </div>
-                                    ` : ''}
-                                </div>
-                            </div>
-                        `).join('') || '<p class="text-center text-xs text-slate-400 py-6">មិនមានទិន្នន័យវត្តមាន</p>'}
-                    </div>
-                </div>
-            `;
-        }
-
-        window.openManualAttendanceModal = function() {
-            const html = `
-                <div id="manual-att-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
-                    <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-3 text-xs">
-                        <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-                            <h3 class="font-bold text-slate-800"><i class="fa-solid fa-plus-circle text-brand-600 mr-1.5"></i>កត់វត្តមានដោយដៃ</h3>
-                            <button onclick="closeModal('manual-att-modal')" class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">ជ្រើសរើសប្រភេទ</label>
-                            <select id="m-att-type" class="w-full border border-slate-300 rounded-xl p-2.5 bg-white">
-                                <option value="student">សិស្ស</option>
-                                <option value="teacher_in">គ្រូ (Check-in)</option>
-                                <option value="teacher_out">គ្រូ (Check-out)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">ID សិស្ស/គ្រូ</label>
-                            <input type="text" id="m-att-id" placeholder="ឧ. S-001" class="w-full border border-slate-300 rounded-xl p-2.5">
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">ស្ថានភាព</label>
-                            <select id="m-att-status" class="w-full border border-slate-300 rounded-xl p-2.5 bg-white">
-                                <option value="មកទាន់ពេល">មកទាន់ពេល</option>
-                                <option value="មកយឺត">មកយឺត</option>
-                                <option value="សុំច្បាប់">សុំច្បាប់</option>
-                                <option value="អវត្តមាន">អវត្តមាន</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">ចំណាំ</label>
-                            <input type="text" id="m-att-note" placeholder="មូលហេតុ ឬកំណត់សម្គាល់" class="w-full border border-slate-300 rounded-xl p-2.5">
-                        </div>
-                        <div class="flex space-x-2 pt-2">
-                            <button onclick="closeModal('manual-att-modal')" class="flex-1 bg-slate-100 py-2.5 rounded-xl font-bold">បោះបង់</button>
-                            <button onclick="saveManualAttendance()" class="flex-1 bg-brand-600 text-white py-2.5 rounded-xl font-bold shadow">រក្សាទុក</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            document.getElementById('modal-container').innerHTML = html;
-        }
-
-        window.saveManualAttendance = function() {
-            const type = document.getElementById('m-att-type').value;
-            const code = document.getElementById('m-att-id').value.trim();
-            const status = document.getElementById('m-att-status').value;
-            const note = document.getElementById('m-att-note').value.trim();
-
-            if (!code) {
-                showToast("សូមបញ្ចូល ID ជាមុនសិន!", "error");
-                return;
-            }
-
-            let target = null;
-            if (type === 'student') target = window.appState.students.find(s => s.id === code);
-            else target = window.appState.teachers.find(t => t.id === code);
-
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const day = String(now.getDate()).padStart(2, '0');
-            const hours = String(now.getHours()).padStart(2, '0');
-            const minutes = String(now.getMinutes()).padStart(2, '0');
-            const seconds = String(now.getSeconds()).padStart(2, '0');
-            const timeStr = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-
-            const record = {
-                id: 'ATT-' + Date.now(),
-                recordId: code,
-                name: target ? target.name : `បុគ្គលិក/សិស្ស (${code})`,
-                type: type,
-                classId: target ? (target.classId || 'ទូទៅ') : 'ទូទៅ',
-                status: status,
-                time: timeStr,
-                note: note || 'កត់ត្រាដោយដៃ'
-            };
-
-            // Local state update
-            window.appState.attendance.unshift(record);
-            
-            // Sync to Real-time Cloud for device B
-            syncToFirebase('attendance', record.id, record);
-            
-            sendTelegramNotification(record);
-            showToast("កត់វត្តមានជោគជ័យ និង Sync ទៅ Cloud រួចរាល់!", "success");
-            closeModal('manual-att-modal');
-            renderCurrentTab();
-        }
-
-        window.openEditAttendanceModal = function(attId) {
-            const att = window.appState.attendance.find(a => a.id === attId);
-            if (!att) return;
-            const html = `
-                <div id="edit-att-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
-                    <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-3 text-xs">
-                        <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-                            <h3 class="font-bold text-slate-800"><i class="fa-solid fa-pen-to-square text-brand-600 mr-1.5"></i>កែប្រែវត្តមាន (${att.name})</h3>
-                            <button onclick="closeModal('edit-att-modal')" class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">ស្ថានភាពវត្តមាន</label>
-                            <select id="edit-att-status" class="w-full border border-slate-300 rounded-xl p-2.5 bg-white">
-                                <option value="មកទាន់ពេល" ${att.status==='មកទាន់ពេល'?'selected':''}>មកទាន់ពេល</option>
-                                <option value="មកយឺត" ${att.status==='មកយឺត'?'selected':''}>មកយឺត</option>
-                                <option value="សុំច្បាប់" ${att.status==='សុំច្បាប់'?'selected':''}>សុំច្បាប់</option>
-                                <option value="អវត្តមាន" ${att.status==='អវត្តមាន'?'selected':''}>អវត្តមាន</option>
-                                <option value="ចូលរៀន (Check-in)" ${att.status==='ចូលរៀន (Check-in)'?'selected':''}>ចូលរៀន (Check-in)</option>
-                                <option value="ចេញរៀន (Check-out)" ${att.status==='ចេញរៀន (Check-out)'?'selected':''}>ចេញរៀន (Check-out)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">កំណត់សម្គាល់បន្ថែម</label>
-                            <input type="text" id="edit-att-note" value="${att.note || ''}" class="w-full border border-slate-300 rounded-xl p-2.5">
-                        </div>
-                        <div class="flex space-x-2 pt-2">
-                            <button onclick="closeModal('edit-att-modal')" class="flex-1 bg-slate-100 py-2.5 rounded-xl font-bold">បោះបង់</button>
-                            <button onclick="saveEditAttendance('${att.id}')" class="flex-1 bg-brand-600 text-white py-2.5 rounded-xl font-bold shadow">រក្សាទុក</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            document.getElementById('modal-container').innerHTML = html;
-        }
-
-        window.saveEditAttendance = function(attId) {
-            const status = document.getElementById('edit-att-status').value;
-            const note = document.getElementById('edit-att-note').value.trim();
-            const idx = window.appState.attendance.findIndex(a => a.id === attId);
-            if (idx !== -1) {
-                window.appState.attendance[idx].status = status;
-                window.appState.attendance[idx].note = note;
-                syncToFirebase('attendance', attId, window.appState.attendance[idx]);
-                showToast("កែប្រែវត្តមានជោគជ័យ!", "success");
-                closeModal('edit-att-modal');
-                renderCurrentTab();
-            }
-        }
-
-        window.deleteAttendance = function(attId) {
-            if (confirm("តើអ្នកពិតជាចង់លុបវត្តមាននេះមែនទេ?")) {
-                window.appState.attendance = window.appState.attendance.filter(a => a.id !== attId);
-                deleteFromFirebase('attendance', attId);
-                showToast("បានលុបទិន្នន័យវត្តមាន!", "success");
-                renderCurrentTab();
-            }
-        }
-
-        // --- 3. STUDENT & TEACHER MANAGEMENT VIEW ---
         function renderPeopleView() {
-            const students = window.appState.students;
-            const teachers = window.appState.teachers;
+            const students = window.appState.students || [];
+            const teachers = window.appState.teachers || [];
             const isAdmin = window.appState.role === 'Admin';
+
             return `
                 <div class="p-4 space-y-4">
                     <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex justify-between items-center">
                         <div>
                             <h2 class="font-bold text-sm text-slate-800"><i class="fa-solid fa-users mr-1.5 text-brand-600"></i>គ្រប់គ្រងសិស្ស និងគ្រូបង្រៀន</h2>
-                            <p class="text-[11px] text-slate-500">សិស្ស: ${students.length} នាក់ | គ្រូ: ${teachers.length} នាក់</p>
+                            <p class="text-[11px] text-slate-500">សិស្សសរុប៖ ${students.length} នាក់ | គ្រូ៖ ${teachers.length} នាក់</p>
                         </div>
-                        <div class="flex gap-1.5 flex-wrap justify-end">
-                            ${isAdmin ? `<button onclick="openAddPersonModal()" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow"><i class="fa-solid fa-plus mr-1"></i>បន្ថែម</button>` : ''}
-                            <button onclick="exportToCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-2.5 py-2 rounded-xl transition shadow" title="ទាញយកជា CSV File"><i class="fa-solid fa-file-csv mr-1"></i>CSV</button>
-                            <button onclick="exportToExcel()" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-2.5 py-2 rounded-xl transition shadow"><i class="fa-solid fa-file-excel mr-1"></i>Excel</button>
-                            <button onclick="printAllQrCards()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-2.5 py-2 rounded-xl transition shadow" title="បោះពុម្ពប័ណ្ណ QR ទាំងអស់"><i class="fa-solid fa-print mr-1"></i>បោះពុម្ព</button>
+                        <div class="flex space-x-1.5">
+                            <button onclick="openLibraryShareModal()" class="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-2.5 py-2 rounded-xl transition shadow flex items-center gap-1" title="ចែករំលែកប្រព័ន្ធជា Library ទៅអ្នកដទៃ">
+                                <i class="fa-solid fa-share-nodes"></i> Share Library
+                            </button>
+                            <button onclick="openQrSyncExportModal()" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-2.5 py-2 rounded-xl transition shadow flex items-center gap-1" title="បង្កើត QR Sync ទិន្នន័យទៅទូរស័ព្ទផ្សេង">
+                                <i class="fa-solid fa-qrcode"></i> QR Sync
+                            </button>
+                            ${isAdmin ? `
+                                <button onclick="openAddPersonModal()" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold px-2.5 py-2 rounded-xl transition shadow flex items-center gap-1">
+                                    <i class="fa-solid fa-plus"></i> បន្ថែម
+                                </button>
+                            ` : ''}
                         </div>
                     </div>
 
-                    <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-3.5 flex items-center justify-between text-xs">
-                        <div>
-                            <p class="font-bold text-emerald-900"><i class="fa-solid fa-qrcode mr-1 text-brand-600"></i>QR Data Transfer & Sync</p>
-                            <p class="text-[10px] text-emerald-700">ស្កែន QR ផ្ទេរទិន្នន័យឆ្លងទូរស័ព្ទ</p>
-                        </div>
-                        <div class="flex space-x-1.5">
-                            <button onclick="openLibraryShareModal()" class="bg-emerald-700 text-white font-bold px-2.5 py-1.5 rounded-xl hover:bg-emerald-800 transition shadow-sm text-[11px]" title="ចែករំលែកគម្រោងនេះជា Library ទៅអ្នកដទៃ">
-                                <i class="fa-solid fa-share-nodes mr-1"></i>Share Library
-                            </button>
-                            <button onclick="openQrSyncExportModal()" class="bg-white text-emerald-800 border border-emerald-300 font-bold px-2.5 py-1.5 rounded-xl hover:bg-emerald-50 transition shadow-sm text-[11px]">
-                                <i class="fa-solid fa-qrcode mr-1"></i>QR Sync
-                            </button>
-                        </div>
+                    <div class="flex justify-between items-center px-1">
+                        <span class="text-xs font-bold text-slate-700 uppercase tracking-wide"><i class="fa-solid fa-id-card text-amber-500 mr-1"></i>បោះពុម្ពប័ណ្ណសរុប</span>
+                        <button onclick="printAllQrCards()" class="text-xs text-amber-600 font-bold hover:underline flex items-center gap-1">
+                            <i class="fa-solid fa-print"></i> បោះពុម្ពប័ណ្ណទាំងអស់
+                        </button>
                     </div>
 
                     <div class="space-y-3">
@@ -926,7 +659,7 @@
                                         </div>
                                         <div>
                                             <h4 class="font-bold text-xs text-slate-800">${s.name} <span class="text-[10px] text-slate-400">(${s.id})</span></h4>
-                                            <p class="text-[10px] text-slate-500">ថ្នាក់: <span class="font-bold text-slate-700">${s.classId}</span> • ភេទ: ${s.gender}</p>
+                                            <p class="text-[10px] text-slate-500">ថ្នាក់: <span class="font-bold text-slate-700">${s.classId}</span> • ភេទ: ${s.gender || 'ប្រុស'}</p>
                                             <p class="text-[10px] text-slate-400">ទូរស័ព្ទ: ${s.parentPhone || 'អត់មាន'}</p>
                                         </div>
                                     </div>
@@ -944,7 +677,7 @@
                                         ` : ''}
                                     </div>
                                 </div>
-                            `).join('')}
+                            `).join('') || '<p class="text-xs text-slate-400 italic col-span-2 text-center py-4">គ្មានទិន្នន័យសិស្ស</p>'}
                         </div>
                     </div>
 
@@ -977,50 +710,354 @@
                                         ` : ''}
                                     </div>
                                 </div>
-                            `).join('')}
+                            `).join('') || '<p class="text-xs text-slate-400 italic col-span-2 text-center py-4">គ្មានទិន្នន័យគ្រូបង្រៀន</p>'}
                         </div>
                     </div>
                 </div>
             `;
         }
 
+        window.exportToCSV = function() {
+            try {
+                const atts = window.appState.attendance;
+                if (atts.length === 0) {
+                    showToast("គ្មានទិន្នន័យវត្តមានសម្រាប់ Export ជា CSV ឡើយ!", "error");
+                    return;
+                }
+                let csvContent = "\uFEFF";
+                csvContent += "ID,ឈ្មោះ,ប្រភេទ,ថ្នាក់,ស្ថានភាព,កាលបរិច្ឆេទនិងម៉ោង,ចំណាំ\n";
+                
+                atts.forEach(a => {
+                    const row = [
+                        `"${a.recordId}"`,
+                        `"${a.name}"`,
+                        `"${a.type}"`,
+                        `"${a.classId}"`,
+                        `"${a.status}"`,
+                        `"${a.time}"`,
+                        `"${a.note || ''}"`
+                    ];
+                    csvContent += row.join(",") + "\n";
+                });
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", `Attendance_Export_${new Date().toISOString().slice(0,10)}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showToast("ទាញយកទិន្នន័យជា File CSV ជោគជ័យ!", "success");
+            } catch (e) {
+                console.error("CSV Export error:", e);
+                showToast("បញ្ហាក្នុងការបង្កើត CSV File", "error");
+            }
+        }
+
+        function sendGoogleSheetNotification(record) {
+            const sheetUrl = window.appState.googleSheetUrl || 'https://script.google.com/macros/s/AKfycbyhca0dGNj8CV41xUzZZcGUplmuoAQ3kCzg2jN0M8VLo3Gva1RDzlKPcpx4CZNC-0zPsw/exec';
+            if (!sheetUrl) return;
+
+            const payload = {
+                id: record.id || ('ATT-' + Date.now()),
+                personId: record.recordId || record.id || '',
+                name: record.name || '',
+                role: record.type || 'student',
+                type: record.type || 'student',
+                grade: record.classId || 'ទូទៅ',
+                classId: record.classId || 'ទូទៅ',
+                status: record.status || 'មកទាន់ពេល',
+                timestamp: record.time || '',
+                time: record.time || '',
+                note: record.note || 'ស្កែន QR ស្វ័យប្រវត្តិ'
+            };
+
+            const formBody = new URLSearchParams();
+            Object.keys(payload).forEach(key => {
+                formBody.append(key, payload[key]);
+            });
+
+            fetch(sheetUrl, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+                body: formBody.toString()
+            }).then(() => {
+                console.log("✅ Google Sheet Sync Request Sent for:", record.name);
+            }).catch(e => console.log("Google Sheet sync note:", e));
+        }
+
+        window.syncAllAttendanceToGoogleSheet = function() {
+            const sheetUrl = window.appState.googleSheetUrl || 'https://script.google.com/macros/s/AKfycbyhca0dGNj8CV41xUzZZcGUplmuoAQ3kCzg2jN0M8VLo3Gva1RDzlKPcpx4CZNC-0zPsw/exec';
+            if (!sheetUrl) {
+                showToast("សូមបញ្ចូល Google Sheets Webhook URL ក្នុង Settings ជាមុនសិន!", "error");
+                return;
+            }
+
+            const atts = window.appState.attendance;
+            if (!atts || atts.length === 0) {
+                showToast("គ្មានទិន្នន័យវត្តមានសម្រាប់ Sync ឡើយ!", "error");
+                return;
+            }
+
+            showToast(`កំពុង Sync ទិន្នន័យ (${atts.length} នាក់) ទៅ Google Sheet...`, "info");
+            
+            let count = 0;
+            atts.forEach((rec, idx) => {
+                setTimeout(() => {
+                    sendGoogleSheetNotification(rec);
+                    count++;
+                    if (count === atts.length) {
+                        showToast("បានបញ្ជូនទិន្នន័យវត្តមានទាំងអស់ទៅ Google Sheet រួចរាល់!", "success");
+                    }
+                }, idx * 150);
+            });
+        }
+
+        function renderAttendanceView() {
+            const atts = window.appState.attendance || [];
+            const isAdmin = window.appState.role === 'Admin';
+            return `
+                <div class="p-4 space-y-4">
+                    <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex justify-between items-center">
+                        <div>
+                            <h2 class="font-bold text-sm text-slate-800"><i class="fa-solid fa-clipboard-user mr-1.5 text-brand-600"></i>ប្រព័ន្ធគ្រប់គ្រងវត្តមាន</h2>
+                            <p class="text-[11px] text-slate-500">សរុបកំណត់ត្រា៖ ${atts.length} នាក់</p>
+                        </div>
+                        <div class="flex space-x-1 border-l pl-2 border-slate-200">
+                            <button onclick="openTeacherCheckInModal()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-2.5 py-2 rounded-xl transition shadow flex items-center gap-1" title="គ្រូកត់វត្តមាន Check-in/Check-out">
+                                <i class="fa-solid fa-user-check"></i>គ្រូ Check-in
+                            </button>
+                            <button onclick="syncAllAttendanceToGoogleSheet()" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-2.5 py-2 rounded-xl transition shadow" title="Push ទិន្នន័យទាំងអស់ចូល Google Sheet">
+                                <i class="fa-solid fa-file-excel mr-1"></i>Sync
+                            </button>
+                            <button onclick="openManualAttendanceModal()" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold px-2.5 py-2 rounded-xl transition shadow">
+                                <i class="fa-solid fa-plus mr-1"></i>សិស្ស
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200 space-y-3">
+                        <h3 class="font-bold text-xs text-slate-800 border-b border-slate-100 pb-2 flex justify-between items-center">
+                            <span><i class="fa-solid fa-list-check text-brand-600 mr-1.5"></i>បញ្ជីវត្តមានទាំងអស់ (${atts.length})</span>
+                            <button onclick="exportToExcel()" class="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200"><i class="fa-solid fa-file-excel mr-1"></i>Excel</button>
+                        </h3>
+                        <div class="space-y-2 max-h-[60vh] overflow-y-auto hide-scrollbar">
+                            ${atts.map(a => `
+                                <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+                                    <div class="space-y-0.5">
+                                        <p class="font-bold text-slate-800">${a.name} <span class="text-[10px] font-normal text-slate-400">(${a.recordId || a.id})</span></p>
+                                        <p class="text-[10px] text-slate-500">ថ្នាក់/ប្រភេទ: <span class="font-bold text-slate-700">${a.classId}</span> (${a.type || 'សិស្ស'})</p>
+                                        <p class="text-[9px] text-slate-400"><i class="fa-solid fa-clock mr-1"></i>${a.time}</p>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="px-2.5 py-1 rounded-lg text-[10px] font-bold ${a.status==='មកទាន់ពេល'?'bg-emerald-100 text-emerald-700':(a.status==='មកយឺត'?'bg-amber-100 text-amber-700':'bg-rose-100 text-rose-700')}">${a.status}</span>
+                                        ${isAdmin ? `
+                                            <button onclick="deleteAttendanceRecord('${a.id}')" class="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg text-xs" title="លុប"><i class="fa-solid fa-trash"></i></button>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            `).join('') || '<p class="text-center text-xs text-slate-400 py-6">មិនទាន់មានវត្តមាននៅឡើយ</p>'}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        window.openManualAttendanceModal = function() {
+            const classOptionsHtml = window.appState.classes.map(c => `<option value="${c}">ថ្នាក់ទី ${c}</option>`).join('');
+            const html = `
+                <div id="manual-att-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+                    <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-3 text-xs">
+                        <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+                            <h3 class="font-bold text-slate-800"><i class="fa-solid fa-plus-circle text-brand-600 mr-1.5"></i>សិស្ស កត់វត្តមានដោយដៃ</h3>
+                            <button onclick="closeModal('manual-att-modal')" class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div>
+                            <label class="block font-medium text-slate-700 mb-1">អត្តលេខ/ឈ្មោះ</label>
+                            <input type="text" id="man-att-id" placeholder="បញ្ចូល ID ឬ ឈ្មោះសិស្ស..." class="w-full border border-slate-300 rounded-xl p-2.5 font-bold">
+                        </div>
+                        <div>
+                            <label class="block font-medium text-slate-700 mb-1">ថ្នាក់រៀន</label>
+                            <select id="man-att-class" class="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-bold">
+                                ${classOptionsHtml}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block font-medium text-slate-700 mb-1">ស្ថានភាព</label>
+                            <select id="man-att-status" class="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-bold">
+                                <option value="មកទាន់ពេល">មកទាន់ពេល</option>
+                                <option value="មកយឺត">មកយឺត</option>
+                                <option value="សុំច្បាប់">សុំច្បាប់</option>
+                                <option value="អវត្តមាន">អវត្តមាន</option>
+                            </select>
+                        </div>
+                        <div class="flex space-x-2 pt-2">
+                            <button onclick="closeModal('manual-att-modal')" class="flex-1 bg-slate-100 py-2.5 rounded-xl font-bold">បោះបង់</button>
+                            <button onclick="saveManualAttendance()" class="flex-1 bg-brand-600 text-white py-2.5 rounded-xl font-bold shadow">រក្សាទុក</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('modal-container').innerHTML = html;
+        }
+
+        window.saveManualAttendance = function() {
+            const inputVal = document.getElementById('man-att-id').value.trim();
+            const classId = document.getElementById('man-att-class').value;
+            const status = document.getElementById('man-att-status').value;
+
+            if (!inputVal) {
+                showToast("សូមបញ្ចូល អត្តលេខ ឬ ឈ្មោះសិស្ស!", "error");
+                return;
+            }
+
+            const student = window.appState.students.find(s => s.id === inputVal || s.name.includes(inputVal));
+            const now = new Date();
+            const timeStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ':' + String(now.getSeconds()).padStart(2,'0');
+
+            const record = {
+                id: 'ATT-' + Date.now(),
+                recordId: student ? student.id : inputVal,
+                name: student ? student.name : inputVal,
+                type: 'student',
+                classId: classId,
+                status: status,
+                time: timeStr,
+                note: 'កត់វត្តមានដោយដៃ'
+            };
+
+            window.appState.attendance.unshift(record);
+            syncToFirebase('attendance', record.id, record);
+            sendTelegramNotification(record);
+            sendGoogleSheetNotification(record);
+
+            showToast(`បានកត់វត្តមានសិស្ស៖ ${record.name} (${status})`, "success");
+            closeModal('manual-att-modal');
+            renderCurrentTab();
+        }
+
+        window.openTeacherCheckInModal = function() {
+            const teachers = window.appState.teachers || [];
+            const teacherOptions = teachers.map(t => `<option value="${t.id}">${t.name} (${t.subject})</option>`).join('');
+            
+            const html = `
+                <div id="teacher-att-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+                    <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-3 text-xs">
+                        <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+                            <h3 class="font-bold text-slate-800"><i class="fa-solid fa-user-check text-amber-600 mr-1.5"></i>គ្រូបង្រៀន ចុះវត្តមាន Check-in / Out</h3>
+                            <button onclick="closeModal('teacher-att-modal')" class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div>
+                            <label class="block font-medium text-slate-700 mb-1">ជ្រើសរើសគ្រូបង្រៀន</label>
+                            <select id="man-att-teacher" class="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-bold">
+                                ${teacherOptions || '<option value="">គ្មានគ្រូក្នុងបញ្ជី</option>'}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block font-medium text-slate-700 mb-1">ប្រភេទវត្តមាន</label>
+                            <select id="man-att-teacher-status" class="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-bold">
+                                <option value="ចូលរៀន (Check-in)">ចូលរៀន (Check-in)</option>
+                                <option value="ចេញរៀន (Check-out)">ចេញរៀន (Check-out)</option>
+                                <option value="សុំច្បាប់">សុំច្បាប់ (Permission)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block font-medium text-slate-700 mb-1">ចំណាំ</label>
+                            <input type="text" id="man-att-teacher-note" placeholder="ឧ. បង្រៀនថ្នាក់ 12A..." class="w-full border border-slate-300 rounded-xl p-2.5">
+                        </div>
+                        <div class="flex space-x-2 pt-2">
+                            <button onclick="closeModal('teacher-att-modal')" class="flex-1 bg-slate-100 py-2.5 rounded-xl font-bold">បោះបង់</button>
+                            <button onclick="saveTeacherAttendance()" class="flex-1 bg-amber-600 text-white py-2.5 rounded-xl font-bold shadow">រក្សាទុក</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('modal-container').innerHTML = html;
+        }
+
+        window.saveTeacherAttendance = function() {
+            const teacherId = document.getElementById('man-att-teacher').value;
+            const status = document.getElementById('man-att-teacher-status').value;
+            const note = document.getElementById('man-att-teacher-note').value.trim();
+
+            if (!teacherId) {
+                showToast("សូមជ្រើសរើសគ្រូបង្រៀន!", "error");
+                return;
+            }
+
+            const teacher = window.appState.teachers.find(t => t.id === teacherId);
+            const now = new Date();
+            const timeStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ':' + String(now.getSeconds()).padStart(2,'0');
+
+            const record = {
+                id: 'ATT-' + Date.now(),
+                recordId: teacher ? teacher.id : teacherId,
+                name: teacher ? teacher.name : teacherId,
+                type: 'teacher',
+                classId: teacher ? (teacher.subject || 'ទូទៅ') : 'ទូទៅ',
+                status: status,
+                time: timeStr,
+                note: note || 'គ្រូកត់វត្តមានដោយដៃ'
+            };
+
+            window.appState.attendance.unshift(record);
+            syncToFirebase('attendance', record.id, record);
+            sendTelegramNotification(record);
+            sendGoogleSheetNotification(record);
+
+            showToast(`បានកត់វត្តមានគ្រូ៖ ${record.name} (${status})`, "success");
+            closeModal('teacher-att-modal');
+            renderCurrentTab();
+        }
+
+        window.deleteAttendanceRecord = function(attId) {
+            if (confirm("តើអ្នកពិតជាចង់លុបវត្តមាននេះមែនទេ?")) {
+                window.appState.attendance = window.appState.attendance.filter(a => a.id !== attId);
+                deleteFromFirebase('attendance', attId);
+                showToast("បានលុបវត្តមាន!", "success");
+                renderCurrentTab();
+            }
+        }
+
         window.openAddPersonModal = function() {
-            const classOptionsHtml = window.appState.classes.map(c => `<option value="${c}">${c}</option>`).join('');
+            const classOptionsHtml = window.appState.classes.map(c => `<option value="${c}">ថ្នាក់ទី ${c}</option>`).join('');
             const html = `
                 <div id="add-person-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
                     <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-3 text-xs">
                         <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-                            <h3 class="font-bold text-slate-800"><i class="fa-solid fa-user-plus text-brand-600 mr-1.5"></i>បន្ថែមសិស្ស/គ្រូថ្មី</h3>
+                            <h3 class="font-bold text-slate-800"><i class="fa-solid fa-user-plus text-brand-600 mr-1.5"></i>បន្ថែមសិស្ស ឬ គ្រូបង្រៀន</h3>
                             <button onclick="closeModal('add-person-modal')" class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
                         </div>
                         <div>
                             <label class="block font-medium text-slate-700 mb-1">ប្រភេទ</label>
-                            <select id="add-p-type" onchange="toggleAddPersonFields()" class="w-full border border-slate-300 rounded-xl p-2.5 bg-white">
-                                <option value="student">សិស្ស</option>
-                                <option value="teacher">គ្រូបង្រៀន</option>
+                            <select id="add-p-type" onchange="toggleAddPersonFields()" class="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-bold">
+                                <option value="student">សិស្ស (Student)</option>
+                                <option value="teacher">គ្រូបង្រៀន (Teacher)</option>
                             </select>
                         </div>
                         <div>
-                            <label class="block font-medium text-slate-700 mb-1">ID (ឧ. S-005 / T-003)</label>
-                            <input type="text" id="add-p-id" class="w-full border border-slate-300 rounded-xl p-2.5" placeholder="ឧ. S-005 ឬ T-003">
+                            <label class="block font-medium text-slate-700 mb-1">អត្តលេខ (ID / Code)</label>
+                            <input type="text" id="add-p-id" placeholder="ឧ. STU001 ឬ TEA001" class="w-full border border-slate-300 rounded-xl p-2.5 font-mono font-bold">
                         </div>
                         <div>
                             <label class="block font-medium text-slate-700 mb-1">ឈ្មោះពេញ</label>
-                            <input type="text" id="add-p-name" class="w-full border border-slate-300 rounded-xl p-2.5">
+                            <input type="text" id="add-p-name" placeholder="បញ្ចូលឈ្មោះ..." class="w-full border border-slate-300 rounded-xl p-2.5 font-bold">
                         </div>
                         <div id="student-extra-field">
-                            <label class="block font-medium text-slate-700 mb-1">ជ្រើសរើសថ្នាក់រៀន</label>
-                            <select id="add-p-class" class="w-full border border-slate-300 rounded-xl p-2.5 bg-white">
+                            <label class="block font-medium text-slate-700 mb-1">ថ្នាក់រៀន</label>
+                            <select id="add-p-class" class="w-full border border-slate-300 rounded-xl p-2.5 bg-white font-bold">
                                 ${classOptionsHtml}
                             </select>
                         </div>
                         <div id="teacher-extra-field" class="hidden">
-                            <label class="block font-medium text-slate-700 mb-1">មុខវិជ្ជា</label>
-                            <input type="text" id="add-p-subject" placeholder="គណិតវិទ្យា" class="w-full border border-slate-300 rounded-xl p-2.5">
+                            <label class="block font-medium text-slate-700 mb-1">មុខវិជ្ជាបង្រៀន</label>
+                            <input type="text" id="add-p-subject" placeholder="ឧ. គណិតវិទ្យា, អក្សរសាស្ត្រខ្មែរ" class="w-full border border-slate-300 rounded-xl p-2.5">
                         </div>
                         <div>
                             <label class="block font-medium text-slate-700 mb-1">លេខទូរស័ព្ទ</label>
-                            <input type="text" id="add-p-phone" placeholder="012..." class="w-full border border-slate-300 rounded-xl p-2.5">
+                            <input type="text" id="add-p-phone" placeholder="012XXXXXX" class="w-full border border-slate-300 rounded-xl p-2.5">
                         </div>
                         <div class="flex space-x-2 pt-2">
                             <button onclick="closeModal('add-person-modal')" class="flex-1 bg-slate-100 py-2.5 rounded-xl font-bold">បោះបង់</button>
@@ -1029,7 +1066,8 @@
                     </div>
                 </div>
             `;
-            document.getElementById('modal-container').innerHTML = html;
+            const container = document.getElementById('modal-container');
+            if (container) container.innerHTML = html;
         }
 
         window.toggleAddPersonFields = function() {
@@ -1146,7 +1184,6 @@
             }
         }
 
-        // 📤 Open QR Sync Export Modal (Generate Lightweight Sync Key)
         window.openQrSyncExportModal = async function() {
             try {
                 const syncKey = 'SYNC-' + Date.now();
@@ -1191,7 +1228,6 @@
                     }
                 }, 100);
 
-                // Push payload to cloud under sync_payloads safely in background
                 syncToFirebase('sync_payloads', syncKey, syncPayload);
             } catch (err) {
                 console.error("openQrSyncExportModal error:", err);
@@ -1199,9 +1235,16 @@
             }
         }
 
-        // 🌐 Open Library & Project Share Modal
         window.openLibraryShareModal = function() {
-            const currentUrl = window.location.href;
+            let currentUrl = window.location.href;
+            try {
+                if (window.self !== window.top) {
+                    currentUrl = window.location.href || 'https://script.google.com';
+                }
+            } catch (e) {
+                currentUrl = 'https://script.google.com';
+            }
+
             const html = `
                 <div id="lib-share-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
                     <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-4 text-xs">
@@ -1217,14 +1260,14 @@
                                 <p class="text-[11px] text-slate-500">Copy Link នេះផ្ញើជូនមិត្តភក្តិ ឬក្រុមការងារ ដើម្បីបើកប្រើប្រាស់បានភ្លាមៗ៖</p>
                                 <div class="flex gap-1 pt-1">
                                     <input type="text" readonly value="${currentUrl}" id="lib-share-url-box" class="flex-1 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-[10px] font-mono text-slate-600">
-                                    <button onclick="navigator.clipboard.writeText(document.getElementById('lib-share-url-box').value); showToast('បាន Copy Link រួចរាល់!', 'success');" class="bg-brand-600 text-white px-3 py-1.5 rounded-xl font-bold">Copy</button>
+                                    <button onclick="copyShareUrl()" class="bg-brand-600 hover:bg-brand-700 text-white px-3 py-1.5 rounded-xl font-bold transition">Copy</button>
                                 </div>
                             </div>
 
                             <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-1">
                                 <h4 class="font-bold text-slate-800"><i class="fa-solid fa-file-arrow-down text-amber-600 mr-1"></i>វិធីទី ២៖ នាំចេញកូដប្រភព (Export Backup / JSON)</h4>
                                 <p class="text-[11px] text-slate-500">ទាញយកទិន្នន័យសិស្ស គ្រូ និងកាលវិភាគជា File JSON ដើម្បីយកទៅ Import ចូលប្រព័ន្ធថ្មី៖</p>
-                                <button onclick="downloadBackupJson(); closeModal('lib-share-modal');" class="mt-1 w-full bg-amber-600 text-white py-2 rounded-xl font-bold shadow flex items-center justify-center gap-1.5">
+                                <button onclick="downloadBackupJson(); closeModal('lib-share-modal');" class="mt-1 w-full bg-amber-600 hover:bg-amber-700 text-white py-2 rounded-xl font-bold shadow transition flex items-center justify-center gap-1.5">
                                     <i class="fa-solid fa-download"></i><span>ទាញយក Backup JSON File</span>
                                 </button>
                             </div>
@@ -1235,12 +1278,25 @@
                             </div>
                         </div>
 
-                        <button onclick="closeModal('lib-share-modal')" class="w-full bg-slate-800 text-white py-2.5 rounded-xl font-bold">យល់ព្រម / បិទ</button>
+                        <button onclick="closeModal('lib-share-modal')" class="w-full bg-slate-800 hover:bg-slate-900 text-white py-2.5 rounded-xl font-bold transition">យល់ព្រម / បិទ</button>
                     </div>
                 </div>
             `;
             const container = document.getElementById('modal-container');
             if (container) container.innerHTML = html;
+        }
+
+        window.copyShareUrl = function() {
+            const input = document.getElementById('lib-share-url-box');
+            if (input) {
+                input.select();
+                try {
+                    document.execCommand('copy');
+                    showToast('បាន Copy Web App Link រួចរាល់!', 'success');
+                } catch (err) {
+                    showToast('មិនអាច Copy បានឡើយ', 'error');
+                }
+            }
         }
 
         window.processImportedQrSyncData = async function(parsedObj) {
@@ -1427,7 +1483,6 @@
             printWindow.document.close();
         }
 
-        // --- 4. INTERACTIVE TIMETABLE VIEW ---
         function renderTimetableView() {
             const selectedClass = window.appState.selectedClassFilter;
             const timetables = window.appState.timetable.filter(t => t.classId === selectedClass);
@@ -1585,7 +1640,6 @@
             }
         }
 
-        // --- 5. REPORTS VIEW ---
         function renderReportsView() {
             const atts = window.appState.attendance;
             const selectedClass = window.appState.selectedReportClassFilter || 'ALL';
@@ -1608,8 +1662,9 @@
                             <p class="text-[11px] text-slate-500">ស្ថិតិវត្តមានសរុបប្រចាំថ្ងៃ</p>
                         </div>
                         <div class="flex space-x-1">
-                            <button onclick="exportToCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-2.5 py-2 rounded-xl transition shadow" title="ទាញយកជា CSV File"><i class="fa-solid fa-file-csv mr-1"></i>CSV</button>
-                            <button onclick="sendClassReportToTelegram()" class="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-2.5 py-2 rounded-xl transition shadow" title="ផ្ញើរបាយការណ៍ទៅ Telegram"><i class="fa-paper-plane fa-solid mr-1"></i>Telegram</button>
+                            <button onclick="exportToCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-2 py-2 rounded-xl transition shadow" title="ទាញយកជា CSV File"><i class="fa-solid fa-file-csv mr-1"></i>CSV</button>
+                            <button onclick="sendClassReportToTelegram()" class="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-2 py-2 rounded-xl transition shadow" title="ផ្ញើរបាយការណ៍ទៅ Telegram"><i class="fa-paper-plane fa-solid mr-1"></i>Telegram</button>
+                            <button onclick="clearAllAttendanceReports()" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-2 py-2 rounded-xl transition shadow" title="លុបកំណត់ត្រារបាយការណ៍វត្តមានទាំងអស់"><i class="fa-solid fa-trash-can mr-1"></i>លុបទាំងអស់</button>
                         </div>
                     </div>
 
@@ -1619,7 +1674,6 @@
                         </select>
                     </div>
 
-                    <!-- Summary Cards -->
                     <div class="grid grid-cols-2 gap-2.5">
                         <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 text-emerald-900 shadow-sm">
                             <div class="flex justify-between items-center">
@@ -1651,7 +1705,6 @@
                         </div>
                     </div>
 
-                    <!-- Attendance List Table Preview -->
                     <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200 space-y-3">
                         <h3 class="font-bold text-xs text-slate-800 border-b border-slate-100 pb-2">បញ្ជីវត្តមានចុងក្រោយ (${filteredAtts.length})</h3>
                         <div class="space-y-2 max-h-60 overflow-y-auto hide-scrollbar">
@@ -1675,6 +1728,40 @@
             renderCurrentTab();
         }
 
+        window.clearAllAttendanceReports = function() {
+            const currentFilter = window.appState.selectedReportClassFilter || 'ALL';
+            const isAdmin = window.appState.role === 'Admin';
+
+            const actionExecute = () => {
+                if (currentFilter === 'ALL') {
+                    if (!confirm("តើអ្នកពិតជាចង់លុបរបាយការណ៍វត្តមានទាំងអស់មែនទេ? (ទិន្នន័យទាំងអស់នឹងត្រូវលុបចេញពីប្រព័ន្ធ និង Cloud)")) return;
+                    
+                    const copyAtts = [...(window.appState.attendance || [])];
+                    window.appState.attendance = [];
+                    saveToLocalStorage();
+                    
+                    copyAtts.forEach(a => deleteFromFirebase('attendance', a.id));
+                    showToast("បានលុបរបាយការណ៍វត្តមានទាំងអស់រួចរាល់!", "success");
+                } else {
+                    if (!confirm(`តើអ្នកពិតជាចង់លុបរបាយការណ៍វត្តមានថ្នាក់ទី ${currentFilter} ទាំងអស់មែនទេ?`)) return;
+                    
+                    const toDelete = window.appState.attendance.filter(a => a.classId === currentFilter);
+                    window.appState.attendance = window.appState.attendance.filter(a => a.classId !== currentFilter);
+                    saveToLocalStorage();
+
+                    toDelete.forEach(a => deleteFromFirebase('attendance', a.id));
+                    showToast(`បានលុបរបាយការណ៍វត្តមានថ្នាក់ ${currentFilter} រួចរាល់!`, "success");
+                }
+                renderCurrentTab();
+            };
+
+            if (isAdmin) {
+                actionExecute();
+            } else {
+                promptAdminPinVerification(actionExecute);
+            }
+        }
+
         window.openSettingsModal = function() {
             const classChatInputsHtml = window.appState.classes.map(c => `
                 <div class="flex items-center space-x-2 text-xs">
@@ -1694,7 +1781,6 @@
                         </div>
 
                         ${isAdmin ? `
-                            <!-- Google Sheet Webhook Sync Setting -->
                             <div class="bg-emerald-50 p-3 rounded-2xl border border-emerald-200 space-y-2">
                                 <div class="flex justify-between items-center">
                                     <h4 class="font-bold text-emerald-900"><i class="fa-file-csv fa-solid text-emerald-600 mr-1"></i>Google Sheet Sync (Apps Script Webhook)</h4>
@@ -1704,13 +1790,11 @@
                                 <p class="text-[10px] text-emerald-700">បិទ Web App URL របស់ Google Apps Script ត្រង់នេះ ដើម្បីឱ្យប្រព័ន្ធ Push ទិន្នន័យវត្តមានចូល Google Sheet ស្វ័យប្រវត្តិ។</p>
                             </div>
 
-                            <!-- Security PIN Setting -->
                             <div class="bg-amber-50 p-3 rounded-2xl border border-amber-200 space-y-2">
                                 <h4 class="font-bold text-amber-900"><i class="fa-solid fa-shield-halved text-amber-600 mr-1"></i>លេខកូដសុវត្ថិភាព Admin (PIN Security)</h4>
                                 <input type="password" id="cfg-admin-pin" value="${window.appState.adminPin}" placeholder="បញ្ចូល PIN (ដើមគឺ 1234)" class="w-full border border-slate-300 rounded-xl p-2.5 bg-white">
                             </div>
 
-                            <!-- General Telegram Token -->
                             <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2">
                                 <div class="flex justify-between items-center">
                                     <h4 class="font-bold text-slate-800"><i class="fa-brands fa-telegram text-sky-500 mr-1"></i>Telegram Bot Token ដើម</h4>
@@ -1728,7 +1812,6 @@
                                 </button>
                             </div>
 
-                            <!-- Class Chat IDs Mapping -->
                             <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2">
                                 <div class="flex justify-between items-center">
                                     <h4 class="font-bold text-slate-800"><i class="fa-solid fa-layer-group text-brand-600 mr-1"></i>កំណត់ Telegram Chat ID តាមថ្នាក់</h4>
@@ -1825,7 +1908,6 @@
             if (container) container.innerHTML = html;
         }
 
-        // --- SCANNER VIEW (Dynamic Tab 1) ---
         function renderScannerView() {
             const mode = window.appState.scannerMode;
             return `
@@ -1889,7 +1971,6 @@
             renderCurrentTab();
         }
 
-        // Master Tab Switch Handler Engine
         function renderCurrentTab() {
             const main = document.getElementById('main-content');
             if (!main) return;
@@ -1910,7 +1991,6 @@
             }
         }
 
-        // Helper Notification & Modal Tools
         window.showToast = function(msg, type = 'info') {
             const container = document.getElementById('toast-container');
             if (!container) return;
@@ -2045,7 +2125,6 @@
             }).catch(() => showToast("មានបញ្ហាក្នុងការភ្ជាប់ទៅ Telegram", "error"));
         }
 
-        // Initialize application on window load
         window.addEventListener('DOMContentLoaded', () => {
             initApp();
         });
