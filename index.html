@@ -556,24 +556,41 @@
             }
 
             const lowerCode = code.toLowerCase();
+            const cleanCode = lowerCode.replace(/[^a-z0-9]/g, '');
             const mode = window.appState.scannerMode;
             let target = null;
             let typeName = '';
 
             if (mode === 'student') {
-                target = window.appState.students.find(s => 
-                    s.id.toLowerCase() === lowerCode || 
-                    s.name.toLowerCase().includes(lowerCode) ||
-                    (s.parentPhone && s.parentPhone.includes(code))
-                );
+                target = window.appState.students.find(s => {
+                    const sId = (s.id || '').toLowerCase();
+                    const sCleanId = sId.replace(/[^a-z0-9]/g, '');
+                    const sName = (s.name || '').toLowerCase();
+                    const sPhone = (s.parentPhone || '');
+                    return sId === lowerCode || 
+                           sCleanId === cleanCode || 
+                           sName.includes(lowerCode) ||
+                           (sPhone && sPhone.includes(code));
+                });
                 typeName = 'student';
             } else {
-                target = window.appState.teachers.find(t => 
-                    t.id.toLowerCase() === lowerCode || 
-                    t.name.toLowerCase().includes(lowerCode) ||
-                    (t.phone && t.phone.includes(code))
-                );
+                target = window.appState.teachers.find(t => {
+                    const tId = (t.id || '').toLowerCase();
+                    const tCleanId = tId.replace(/[^a-z0-9]/g, '');
+                    const tName = (t.name || '').toLowerCase();
+                    const tPhone = (t.phone || '');
+                    return tId === lowerCode || 
+                           tCleanId === cleanCode || 
+                           tName.includes(lowerCode) ||
+                           (tPhone && tPhone.includes(code));
+                });
                 typeName = mode;
+            }
+
+            // ប្រសិនបើមិនទាន់ឃើញក្នុង Mode ជាក់លាក់ ស្វែងរកក្នុងបញ្ជីរួម (Cross-Check Search)
+            if (!target) {
+                target = window.appState.students.find(s => (s.id || '').toLowerCase() === lowerCode || (s.id || '').toLowerCase().replace(/[^a-z0-9]/g, '') === cleanCode) ||
+                         window.appState.teachers.find(t => (t.id || '').toLowerCase() === lowerCode || (t.id || '').toLowerCase().replace(/[^a-z0-9]/g, '') === cleanCode);
             }
 
             if (!target) {
@@ -599,7 +616,7 @@
                 recordId: target.id || code,
                 name: target.name || code,
                 type: typeName,
-                classId: target.classId || 'ទូទៅ',
+                classId: target.classId || target.subject || 'ទូទៅ',
                 status: mode === 'teacher_in' ? 'ចូលរៀន (Check-in)' : (mode === 'teacher_out' ? 'ចេញរៀន (Check-out)' : 'មកទាន់ពេល'),
                 time: timeStr,
                 note: mode === 'teacher_out' ? 'បញ្ចប់ម៉ោងបង្រៀន' : 'ស្កែន QR ស្វ័យប្រវត្តិ'
@@ -612,6 +629,7 @@
             sendGoogleSheetNotification(record);
 
             showToast(`កត់ត្រាជោគជ័យ៖ ${target.name} (${record.status})`, "success");
+            setTimeout(() => { isProcessingScan = false; }, 1500);
         }
 
         function renderPeopleView() {
