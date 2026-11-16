@@ -224,115 +224,415 @@
     </div>
 
     <!-- ========================================== -->
-    <!-- 3. MODALS & OVERLAYS (ផ្ទាំងបង្អួចបន្ថែម)     -->
+    <!-- 3. MODAL OVERLAY & TOAST NOTIFICATIONS     -->
     <!-- ========================================== -->
-    <div id="modalOverlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4 overflow-y-auto">
-        <div id="modalContainer" class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden transform transition-all my-8">
-            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                <h3 id="modalTitle" class="text-lg font-bold text-slate-800">Title</h3>
-                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-200/50 transition">
-                    <i class="fas fa-times text-lg"></i>
+    <div id="modalOverlay" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-xs overflow-y-auto">
+        <div id="modalContainer" class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden my-auto transform transition-all">
+            <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+                <h3 id="modalTitle" class="font-bold text-slate-800 text-base">Modal Title</h3>
+                <button type="button" onclick="closeModal()" class="w-8 h-8 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-red-600 hover:bg-red-50 flex items-center justify-center transition">
+                    <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div id="modalBody" class="p-6 max-h-[75vh] overflow-y-auto"></div>
+            <div id="modalBody" class="p-5 max-h-[82vh] overflow-y-auto">
+                <!-- Modal content injected via JS -->
+            </div>
         </div>
     </div>
 
-    <!-- Toast Notification Container -->
-    <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+    <!-- Toast Notifications Container -->
+    <div id="toastContainer" class="fixed bottom-4 right-4 z-[60] flex flex-col gap-2 pointer-events-none max-w-sm w-full px-4 sm:px-0"></div>
 
     <!-- Hidden Print Area -->
     <div id="printArea" class="hidden"></div>
 
-    <!-- ========================================== -->
-    <!-- 4. JAVASCRIPT APPLICATION LOGIC            -->
-    <!-- ========================================== -->
     <script>
-        /**
-         * ============================================================================
-         * SYSTEM ARCHITECTURE & DATABASE LAYER (In-Memory + Persistence Ready)
-         * ============================================================================
-         */
-        const DB_KEY = 'SMS_KHMER_DB_V1';
+        const DB_KEY = 'SCHOOL_MANAGEMENT_SYSTEM_DB_V2';
 
-        // Clean Empty Initial Database Schema (No Dummy Data)
-        const defaultDatabase = {
-            settings: {
-                schoolNameKh: 'វិទ្យាល័យ ហ៊ុន សែន',
-                schoolNameEn: 'Hun Sen High School',
-                exchangeRate: 4100, // 1 USD = 4100 KHR
-                currentYear: '2025-2026',
-                academicYears: ['2024-2025', '2025-2026', '2026-2027'],
-                version: '1.0.0',
-                teacherTgBotToken: '',
-                teacherTgChatId: '',
-                teacherTgAutoNotify: true
-            },
-            users: [
-                { id: 'U01', username: 'admin', passwordHash: '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', fullName: 'សុខ វណ្ណា (Super Admin)', role: 'Super Admin', status: 'Active' },
-                { id: 'U02', username: 'director', passwordHash: '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', fullName: 'បណ្ឌិត ចាន់ សុភាព', role: 'នាយកសាលា', status: 'Active' },
-                { id: 'U03', username: 'teacher', passwordHash: '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', fullName: 'កញ្ញា លី សុភា', role: 'គ្រូបង្រៀន', status: 'Active' },
-                { id: 'U04', username: 'accountant', passwordHash: '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', fullName: 'អ្នកស្រី កែវ ម៉ាលី', role: 'គណនេយ្យករ', status: 'Active' },
-                { id: 'U05', username: 'librarian', passwordHash: '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', fullName: 'លោក ហេង ពិសិដ្ឋ', role: 'បណ្ណារក្ស', status: 'Active' }
-            ],
-            // Role-Based Access Control Matrix
-            permissions: {
-                'Super Admin': ['dashboard', 'directory', 'classes', 'students', 'teachers', 'attendance', 'subjects', 'curriculum', 'grades', 'finance', 'library', 'inventory', 'staff', 'reports', 'users', 'settings'],
-                'នាយកសាលា': ['dashboard', 'directory', 'classes', 'students', 'teachers', 'attendance', 'subjects', 'curriculum', 'grades', 'finance', 'library', 'inventory', 'staff', 'reports', 'users'],
-                'អ្នកគ្រប់គ្រង': ['dashboard', 'directory', 'classes', 'students', 'teachers', 'attendance', 'subjects', 'curriculum', 'grades', 'library', 'inventory', 'reports'],
-                'គ្រូបង្រៀន': ['dashboard', 'directory', 'classes', 'students', 'attendance', 'subjects', 'curriculum', 'grades', 'reports'],
-                'គណនេយ្យករ': ['dashboard', 'finance', 'staff', 'reports'],
-                'បណ្ណារក្ស': ['dashboard', 'library', 'reports'],
-                'បុគ្គលិក': ['dashboard', 'inventory', 'reports']
-            },
-            curriculum: [],
-            classes: [],
-            students: [],
-            teachers: [],
-            subjects: [
-                { id: 'SUB-01', code: 'MATH', nameKh: 'គណិតវិទ្យា', nameEn: 'Mathematics', grades: '7-12', maxScore: 125 },
-                { id: 'SUB-02', code: 'KHM', nameKh: 'អក្សរសាស្ត្រខ្មែរ', nameEn: 'Khmer Literature', grades: '7-12', maxScore: 100 },
-                { id: 'SUB-03', code: 'PHYS', nameKh: 'រូបវិទ្យា', nameEn: 'Physics', grades: '7-12', maxScore: 75 },
-                { id: 'SUB-04', code: 'CHEM', nameKh: 'គីមីវិទ្យា', nameEn: 'Chemistry', grades: '7-12', maxScore: 75 },
-                { id: 'SUB-05', code: 'ENG', nameKh: 'ភាសាអង់គ្លេស', nameEn: 'English', grades: '7-12', maxScore: 50 }
-            ],
-            scheduleRows: [],
-            schedules: [],
-            attendance: [],
-            grades: [],
-            finance: [],
-            library: [],
-            borrowRecords: [],
-            inventory: [],
-            staff: [],
-            auditLogs: [
-                { id: 'LOG-01', timestamp: '2026-11-14 08:00:00', user: 'System', action: 'ចាប់ផ្តើមប្រព័ន្ធ', details: 'ប្រព័ន្ធគ្រប់គ្រងសាលារៀនបានរៀបចំរួចរាល់' }
-            ]
-        };
-
-        // Load or Initialize DB with safe normalization (prevents undefined arrays from Firebase RTDB)
-        function normalizeDB(raw) {
-            const base = JSON.parse(JSON.stringify(defaultDatabase));
-            if (!raw || typeof raw !== 'object') return base;
+        function getDefaultDB() {
             return {
-                settings: { ...base.settings, ...(raw.settings || {}) },
-                users: Array.isArray(raw.users) && raw.users.length > 0 ? raw.users : base.users,
-                permissions: { ...base.permissions, ...(raw.permissions || {}) },
-                curriculum: Array.isArray(raw.curriculum) ? raw.curriculum : [],
-                classes: Array.isArray(raw.classes) ? raw.classes : [],
-                students: Array.isArray(raw.students) ? raw.students : [],
-                teachers: Array.isArray(raw.teachers) ? raw.teachers : [],
-                subjects: Array.isArray(raw.subjects) && raw.subjects.length > 0 ? raw.subjects : base.subjects,
-                scheduleRows: Array.isArray(raw.scheduleRows) ? raw.scheduleRows : [],
-                schedules: Array.isArray(raw.schedules) ? raw.schedules : [],
+                settings: {
+                    schoolNameKh: 'វិទ្យាល័យ ហ៊ុន សែន',
+                    schoolNameEn: 'Hun Sen High School',
+                    currentYear: '2025-2026',
+                    academicYears: ['2024-2025', '2025-2026', '2026-2027'],
+                    exchangeRate: 4100,
+                    teacherTgBotToken: '',
+                    teacherTgChatId: '',
+                    teacherTgAutoNotify: true
+                },
+                users: [
+                    { id: 'U01', username: 'admin', passwordHash: '', fullName: 'Super Admin', role: 'Super Admin', status: 'Active' },
+                    { id: 'U02', username: 'teacher', passwordHash: '', fullName: 'គ្រូបង្រៀន គំរូ', role: 'គ្រូបង្រៀន', status: 'Active' },
+                    { id: 'U03', username: 'accountant', passwordHash: '', fullName: 'គណនេយ្យករ គំរូ', role: 'គណនេយ្យករ', status: 'Active' }
+                ],
+                permissions: {
+                    'Super Admin': ['dashboard', 'directory', 'classes', 'students', 'teachers', 'attendance', 'subjects', 'curriculum', 'grades', 'finance', 'library', 'inventory', 'staff', 'reports', 'users', 'settings'],
+                    'នាយកសាលា': ['dashboard', 'directory', 'classes', 'students', 'teachers', 'attendance', 'subjects', 'curriculum', 'grades', 'finance', 'library', 'inventory', 'staff', 'reports', 'users', 'settings'],
+                    'អ្នកគ្រប់គ្រង': ['dashboard', 'directory', 'classes', 'students', 'teachers', 'attendance', 'subjects', 'curriculum', 'grades', 'library', 'inventory', 'staff', 'reports'],
+                    'គ្រូបង្រៀន': ['dashboard', 'directory', 'attendance', 'subjects', 'curriculum', 'grades', 'library'],
+                    'គណនេយ្យករ': ['dashboard', 'directory', 'finance', 'staff', 'reports'],
+                    'បណ្ណារក្ស': ['dashboard', 'directory', 'library'],
+                    'បុគ្គលិក': ['dashboard', 'directory', 'attendance', 'inventory']
+                },
+                classes: [
+                    { id: 'CLS-01', grade: '7', room: '៧ក', group: 'ក្រុម A', teacherId: 'TCH001', year: '2025-2026', tgBotToken: '', tgChatId: '', tgAutoNotify: true },
+                    { id: 'CLS-02', grade: '8', room: '៨ក', group: 'ក្រុម A', teacherId: 'TCH002', year: '2025-2026', tgBotToken: '', tgChatId: '', tgAutoNotify: true },
+                    { id: 'CLS-03', grade: '9', room: '៩ក', group: 'ក្រុម A', teacherId: 'TCH003', year: '2025-2026', tgBotToken: '', tgChatId: '', tgAutoNotify: true }
+                ],
+                students: [
+                    { id: 'STU0001', nameKh: 'សុខ ដារ៉ា', nameEn: 'Sok Dara', gender: 'ប្រុស', dob: '2012-05-12', grade: '7', room: '៧ក', group: 'ក្រុម A', phone: '012 345 678', year: '2025-2026', feeTotal: 250, feePaid: 250, photo: '', history: ['2025-2026: ចុះឈ្មោះចូលរៀនថ្នាក់ ៧ក'] },
+                    { id: 'STU0002', nameKh: 'ចាន់ ស្រីពេជ្រ', nameEn: 'Chan Sreypich', gender: 'ស្រី', dob: '2011-08-20', grade: '8', room: '៨ក', group: 'ក្រុម A', phone: '015 987 654', year: '2025-2026', feeTotal: 250, feePaid: 150, photo: '', history: ['2025-2026: ចុះឈ្មោះចូលរៀនថ្នាក់ ៨ក'] },
+                    { id: 'STU0003', nameKh: 'លី ណារី', nameEn: 'Ly Nary', gender: 'ស្រី', dob: '2010-03-14', grade: '9', room: '៩ក', group: 'ក្រុម A', phone: '077 112 233', year: '2025-2026', feeTotal: 250, feePaid: 250, photo: '', history: ['2025-2026: ចុះឈ្មោះចូលរៀនថ្នាក់ ៩ក'] }
+                ],
+                teachers: [
+                    { id: 'TCH001', nameKh: 'លោកគ្រូ កែវ សុខា', nameEn: 'Keo Sokha', gender: 'ប្រុស', subject: 'គណិតវិទ្យា', homeroom: '៧ក', hoursPerWeek: 18, phone: '012 888 999', experience: 'បរិញ្ញាបត្រគណិតវិទ្យា (៥ឆ្នាំ)', hourlyRate: 5 },
+                    { id: 'TCH002', nameKh: 'អ្នកគ្រូ ហេង ម៉ាលី', nameEn: 'Heng Maly', gender: 'ស្រី', subject: 'អក្សរសាស្ត្រខ្មែរ', homeroom: '៨ក', hoursPerWeek: 18, phone: '092 444 555', experience: 'បរិញ្ញាបត្រអក្សរសាស្ត្រខ្មែរ (៧ឆ្នាំ)', hourlyRate: 5 },
+                    { id: 'TCH003', nameKh: 'លោកគ្រូ វណ្ណ វិសាល', nameEn: 'Vann Visal', gender: 'ប្រុស', subject: 'រូបវិទ្យា', homeroom: '៩ក', hoursPerWeek: 16, phone: '010 333 222', experience: 'បរិញ្ញាបត្ររូបវិទ្យា (៤ឆ្នាំ)', hourlyRate: 5 }
+                ],
+                subjects: [
+                    { id: 'SUB-01', code: 'MATH', nameKh: 'គណិតវិទ្យា', maxScore: 125 },
+                    { id: 'SUB-02', code: 'KHM', nameKh: 'អក្សរសាស្ត្រខ្មែរ', maxScore: 100 },
+                    { id: 'SUB-03', code: 'PHYS', nameKh: 'រូបវិទ្យា', maxScore: 75 },
+                    { id: 'SUB-04', code: 'CHEM', nameKh: 'គីមីវិទ្យា', maxScore: 75 },
+                    { id: 'SUB-05', code: 'ENG', nameKh: 'ភាសាអង់គ្លេស', maxScore: 50 }
+                ],
+                scheduleRows: [
+                    {
+                        id: 'SGRID-01',
+                        session: 'វេនព្រឹក',
+                        label: '07:15 - 08:00 (ម៉ោងទី១)',
+                        room: '-',
+                        days: {
+                            'ច័ន្ទ (Monday)': 'គណិតវិទ្យា',
+                            'អង្គារ (Tuesday)': 'អក្សរសាស្ត្រខ្មែរ',
+                            'ពុធ (Wednesday)': 'រូបវិទ្យា',
+                            'ព្រហស្បតិ៍ (Thursday)': 'គីមីវិទ្យា',
+                            'សុក្រ (Friday)': 'ភាសាអង់គ្លេស',
+                            'សៅរ៍ (Saturday)': 'គណិតវិទ្យា',
+                            'អាទិត្យ (Sunday)': '-'
+                        },
+                        teachers: {
+                            'ច័ន្ទ (Monday)': 'TCH001',
+                            'អង្គារ (Tuesday)': 'TCH002',
+                            'ពុធ (Wednesday)': 'TCH003',
+                            'ព្រហស្បតិ៍ (Thursday)': 'TCH003',
+                            'សុក្រ (Friday)': 'TCH002',
+                            'សៅរ៍ (Saturday)': 'TCH001',
+                            'អាទិត្យ (Sunday)': ''
+                        }
+                    },
+                    {
+                        id: 'SGRID-02',
+                        session: 'វេនព្រឹក',
+                        label: '08:00 - 09:00 (ម៉ោងទី២)',
+                        room: '-',
+                        days: {
+                            'ច័ន្ទ (Monday)': 'អក្សរសាស្ត្រខ្មែរ',
+                            'អង្គារ (Tuesday)': 'គណិតវិទ្យា',
+                            'ពុធ (Wednesday)': 'ភាសាអង់គ្លេស',
+                            'ព្រហស្បតិ៍ (Thursday)': 'រូបវិទ្យា',
+                            'សុក្រ (Friday)': 'គណិតវិទ្យា',
+                            'សៅរ៍ (Saturday)': 'អក្សរសាស្ត្រខ្មែរ',
+                            'អាទិត្យ (Sunday)': '-'
+                        },
+                        teachers: {
+                            'ច័ន្ទ (Monday)': 'TCH002',
+                            'អង្គារ (Tuesday)': 'TCH001',
+                            'ពុធ (Wednesday)': 'TCH002',
+                            'ព្រហស្បតិ៍ (Thursday)': 'TCH003',
+                            'សុក្រ (Friday)': 'TCH001',
+                            'សៅរ៍ (Saturday)': 'TCH002',
+                            'អាទិត្យ (Sunday)': ''
+                        }
+                    }
+                ],
+                curriculum: [
+                    { id: 'CUR-01', grade: '7', subject: 'គណិតវិទ្យា', chapter: 'ជំពូកទី១៖ ចំនួនគត់ និងប្រភាគ', hours: 24, status: 'កំពុងបង្រៀន' },
+                    { id: 'CUR-02', grade: '8', subject: 'អក្សរសាស្ត្រខ្មែរ', chapter: 'ជំពូកទី១៖ អក្សរសិល្ប៍បុរាណ', hours: 20, status: 'បញ្ចប់រួចរាល់' }
+                ],
+                attendance: [],
+                grades: [],
+                finance: [],
+                library: [
+                    { id: 'BK-001', title: 'គណិតវិទ្យា ថ្នាក់ទី៧', author: 'ក្រសួងអប់រំ', category: 'សៀវភៅសិក្សាគោល', totalCopies: 25, availableCopies: 25 }
+                ],
+                borrowRecords: [],
+                inventory: [
+                    { id: 'INV-001', name: 'តុ និងកៅអីសិស្ស', category: 'សង្ហារិម', quantity: 120, damaged: 2, location: 'បន្ទប់រៀន', status: 'ល្អ' }
+                ],
+                staff: [
+                    { id: 'STF001', nameKh: 'សុខ សំណាង', position: 'គណនេយ្យករ', baseSalary: 350, bonus: 20, deduction: 0, attendanceDays: 26 }
+                ],
+                auditLogs: []
+            };
+        }
+
+        function normalizeDB(raw) {
+            const def = getDefaultDB();
+            if (!raw || typeof raw !== 'object') return def;
+            return {
+                settings: { ...def.settings, ...(raw.settings || {}) },
+                users: Array.isArray(raw.users) && raw.users.length > 0 ? raw.users : def.users,
+                permissions: { ...def.permissions, ...(raw.permissions || {}) },
+                classes: Array.isArray(raw.classes) ? raw.classes : def.classes,
+                students: Array.isArray(raw.students) ? raw.students : def.students,
+                teachers: Array.isArray(raw.teachers) ? raw.teachers : def.teachers,
+                subjects: Array.isArray(raw.subjects) ? raw.subjects : def.subjects,
+                scheduleRows: Array.isArray(raw.scheduleRows) ? raw.scheduleRows : def.scheduleRows,
+                curriculum: Array.isArray(raw.curriculum) ? raw.curriculum : def.curriculum,
                 attendance: Array.isArray(raw.attendance) ? raw.attendance : [],
                 grades: Array.isArray(raw.grades) ? raw.grades : [],
                 finance: Array.isArray(raw.finance) ? raw.finance : [],
-                library: Array.isArray(raw.library) ? raw.library : [],
+                library: Array.isArray(raw.library) ? raw.library : def.library,
                 borrowRecords: Array.isArray(raw.borrowRecords) ? raw.borrowRecords : [],
-                inventory: Array.isArray(raw.inventory) ? raw.inventory : [],
-                staff: Array.isArray(raw.staff) ? raw.staff : [],
-                auditLogs: Array.isArray(raw.auditLogs) ? raw.auditLogs : base.auditLogs
+                inventory: Array.isArray(raw.inventory) ? raw.inventory : def.inventory,
+                staff: Array.isArray(raw.staff) ? raw.staff : def.staff,
+                auditLogs: Array.isArray(raw.auditLogs) ? raw.auditLogs : []
+            };
+        }
+
+        function renderCurriculum(container) {
+            if (!db.curriculum) db.curriculum = [];
+            container.innerHTML = `
+                <div class="space-y-4">
+                    <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div>
+                            <h3 class="font-bold text-slate-800 text-base md:text-lg flex items-center gap-2">
+                                <i class="fas fa-book-open text-primary-600"></i> គ្រប់គ្រងកម្មវិធីសិក្សា និងមេរៀន (Curriculum)
+                            </h3>
+                            <p class="text-xs text-slate-500 mt-0.5">តាមដានវឌ្ឍនភាពការបង្រៀនតាមជំពូក មុខវិជ្ជា និងកម្រិតថ្នាក់នីមួយៗ</p>
+                        </div>
+                        <button onclick="openCurriculumModal()" class="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-2">
+                            <i class="fas fa-plus"></i> បន្ថែមកម្មវិធីសិក្សា
+                        </button>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-xs border border-slate-100 overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-slate-50 text-slate-600 border-b">
+                                    <tr>
+                                        <th class="py-3 px-4">កម្រិតថ្នាក់</th>
+                                        <th class="py-3 px-4">មុខវិជ្ជា</th>
+                                        <th class="py-3 px-4">ជំពូក / ខ្លឹមសារមេរៀន</th>
+                                        <th class="py-3 px-4 text-center">ចំនួនម៉ោង</th>
+                                        <th class="py-3 px-4 text-center">ស្ថានភាព</th>
+                                        <th class="py-3 px-4 text-right">សកម្មភាព</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    ${db.curriculum.length === 0 ? `<tr><td colspan="6" class="py-8 text-center text-slate-400">មិនទាន់មានទិន្នន័យកម្មវិធីសិក្សាទេ</td></tr>` :
+                                    db.curriculum.map(c => `
+                                        <tr class="hover:bg-slate-50/80 transition">
+                                            <td class="py-3 px-4 font-bold text-primary-600">ថ្នាក់ទី ${c.grade}</td>
+                                            <td class="py-3 px-4 font-semibold text-slate-800">${c.subject}</td>
+                                            <td class="py-3 px-4 text-slate-600">${c.chapter}</td>
+                                            <td class="py-3 px-4 text-center font-bold">${c.hours} ម៉ោង</td>
+                                            <td class="py-3 px-4 text-center">
+                                                <span class="px-2.5 py-1 rounded-lg text-xs font-semibold ${c.status === 'បញ្ចប់រួចរាល់' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}">${c.status}</span>
+                                            </td>
+                                            <td class="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+                                                <button onclick="openCurriculumModal('${c.id}')" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"><i class="fas fa-edit"></i></button>
+                                                <button onclick="deleteCurriculum('${c.id}')" class="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"><i class="fas fa-trash"></i></button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function openCurriculumModal(curId = null) {
+            const cur = curId ? db.curriculum.find(x => x.id === curId) : null;
+            openModal(cur ? 'កែប្រែកម្មវិធីសិក្សា' : 'បន្ថែមកម្មវិធីសិក្សាថ្មី', `
+                <form id="curForm" class="space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold mb-1">កម្រិតថ្នាក់ *</label>
+                            <select id="curGrade" class="w-full px-3 py-2 border rounded-xl text-sm">
+                                ${['7','8','9','10','11','12'].map(g => `<option value="${g}" ${cur?.grade===g?'selected':''}>ថ្នាក់ទី ${g}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold mb-1">មុខវិជ្ជា *</label>
+                            <select id="curSubject" class="w-full px-3 py-2 border rounded-xl text-sm">
+                                ${db.subjects.map(s => `<option value="${s.nameKh}" ${cur?.subject===s.nameKh?'selected':''}>${s.nameKh}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-semibold mb-1">ជំពូក / ខ្លឹមសារមេរៀន *</label>
+                            <input type="text" id="curChapter" required value="${cur ? cur.chapter : ''}" class="w-full px-3 py-2 border rounded-xl text-sm" placeholder="ឧ. ជំពូកទី១៖ សមីការដឺក្រេទី១">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold mb-1">ចំនួនម៉ោងសិក្សា</label>
+                            <input type="number" id="curHours" required value="${cur ? cur.hours : 20}" class="w-full px-3 py-2 border rounded-xl text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold mb-1">ស្ថានភាព</label>
+                            <select id="curStatus" class="w-full px-3 py-2 border rounded-xl text-sm">
+                                <option value="កំពុងបង្រៀន" ${cur?.status==='កំពុងបង្រៀន'?'selected':''}>កំពុងបង្រៀន</option>
+                                <option value="បញ្ចប់រួចរាល់" ${cur?.status==='បញ្ចប់រួចរាល់'?'selected':''}>បញ្ចប់រួចរាល់</option>
+                                <option value="មិនទាន់ចាប់ផ្តើម" ${cur?.status==='មិនទាន់ចាប់ផ្តើម'?'selected':''}>មិនទាន់ចាប់ផ្តើម</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-2 pt-3 border-t">
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 bg-slate-100 rounded-xl text-sm">បោះបង់</button>
+                        <button type="submit" class="px-5 py-2 bg-primary-600 text-white rounded-xl text-sm font-bold shadow-md">រក្សាទុក</button>
+                    </div>
+                </form>
+            `);
+            document.getElementById('curForm').onsubmit = (e) => {
+                e.preventDefault();
+                const data = {
+                    id: cur ? cur.id : 'CUR-' + Date.now().toString().slice(-4),
+                    grade: document.getElementById('curGrade').value,
+                    subject: document.getElementById('curSubject').value,
+                    chapter: document.getElementById('curChapter').value.trim(),
+                    hours: Number(document.getElementById('curHours').value) || 0,
+                    status: document.getElementById('curStatus').value
+                };
+                if (cur) {
+                    const idx = db.curriculum.findIndex(x => x.id === cur.id);
+                    db.curriculum[idx] = data;
+                    showToast('បានកែប្រែកម្មវិធីសិក្សាជោគជ័យ!', 'success');
+                } else {
+                    db.curriculum.push(data);
+                    showToast('បានបន្ថែមកម្មវិធីសិក្សាថ្មីជោគជ័យ!', 'success');
+                }
+                saveDB();
+                closeModal();
+                renderCurriculum(document.getElementById('mainContent'));
+            };
+        }
+
+        function deleteCurriculum(id) {
+            const cur = db.curriculum.find(x => x.id === id);
+            if (!cur) return;
+            confirmDelete(cur.chapter, () => {
+                db.curriculum = db.curriculum.filter(x => x.id !== id);
+                saveDB();
+                renderCurriculum(document.getElementById('mainContent'));
+                showToast('បានលុបកម្មវិធីសិក្សារួចរាល់', 'info');
+            });
+        }
+
+        function parseTimeSlotRangeMinutes(label, session = '') {
+            if (!label) return null;
+            // Support formats like 07:15-08:00, 7:15 - 8:00, 07h15-08h00, 07.15-08.00, ០៧:១៥-០៨:០០
+            const khmerDigits = {'០':'0','១':'1','២':'2','៣':'3','៤':'4','៥':'5','៦':'6','៧':'7','៨':'8','៩':'9'};
+            const normalized = label.replace(/[០-៩]/g, d => khmerDigits[d]);
+            const match = normalized.match(/(\d{1,2})[:hH\.](\d{2})\s*[-–—~ដល់to]+\s*(\d{1,2})[:hH\.](\d{2})/);
+            if (!match) return null;
+
+            let h1 = parseInt(match[1], 10);
+            const m1 = parseInt(match[2], 10);
+            let h2 = parseInt(match[3], 10);
+            const m2 = parseInt(match[4], 10);
+
+            const combinedText = `${normalized} ${session || ''}`.toLowerCase();
+            const isAfternoonOrEvening = combinedText.includes('រសៀល') || combinedText.includes('ល្ងាច') || combinedText.includes('យប់') || combinedText.includes('pm');
+            if (isAfternoonOrEvening) {
+                if (h1 >= 1 && h1 <= 11) h1 += 12;
+                if (h2 >= 1 && h2 <= 11) h2 += 12;
+            }
+            return { start: h1 * 60 + m1, end: h2 * 60 + m2 };
+        }
+
+        function getDayScheduleValue(objMap, dayIndex) {
+            if (!objMap || typeof objMap !== 'object') return '';
+            const dayAliases = [
+                ['អាទិត្យ (Sunday)', 'អាទិត្យ', 'Sunday', 'Sun'],
+                ['ច័ន្ទ (Monday)', 'ចន្ទ (Monday)', 'ច័ន្ទ', 'ចន្ទ', 'Monday', 'Mon'],
+                ['អង្គារ (Tuesday)', 'អង្គារ', 'Tuesday', 'Tue'],
+                ['ពុធ (Wednesday)', 'ពុធ', 'Wednesday', 'Wed'],
+                ['ព្រហស្បតិ៍ (Thursday)', 'ព្រហស្បតិ៍', 'Thursday', 'Thu'],
+                ['សុក្រ (Friday)', 'សុក្រ', 'Friday', 'Fri'],
+                ['សៅរ៍ (Saturday)', 'សៅរ៍', 'Saturday', 'Sat']
+            ];
+            const aliases = dayAliases[dayIndex] || [];
+            for (const key of aliases) {
+                if (objMap[key] !== undefined && objMap[key] !== null && String(objMap[key]).trim() !== '') {
+                    return String(objMap[key]).trim();
+                }
+            }
+            // Partial key match fallback
+            const keys = Object.keys(objMap);
+            for (const k of keys) {
+                if (aliases.some(a => k.toLowerCase().includes(a.toLowerCase()))) {
+                    const val = objMap[k];
+                    if (val !== undefined && val !== null && String(val).trim() !== '') {
+                        return String(val).trim();
+                    }
+                }
+            }
+            return '';
+        }
+
+        function getActiveScheduleForRoom(targetRoom, nowObj = new Date()) {
+            const shortDaysKh = ['អាទិត្យ', 'ច័ន្ទ', 'អង្គារ', 'ពុធ', 'ព្រហស្បតិ៍', 'សុក្រ', 'សៅរ៍'];
+            const todayDayOfWeek = nowObj.getDay();
+            const shortDayName = shortDaysKh[todayDayOfWeek];
+            const currentMinutes = nowObj.getHours() * 60 + nowObj.getMinutes();
+
+            const cleanTargetRoom = (targetRoom && targetRoom !== '-' && targetRoom !== 'ALL') ? targetRoom.trim().toLowerCase() : '';
+
+            const allRowsForDay = (db.scheduleRows || []).filter(row => {
+                if (!row) return false;
+                const rowRoom = (row.room && row.room !== '-') ? row.room.trim().toLowerCase() : '';
+                const matchRoom = !cleanTargetRoom || !rowRoom || rowRoom === cleanTargetRoom;
+                const dayVal = getDayScheduleValue(row.days, todayDayOfWeek);
+                return matchRoom && dayVal && dayVal !== '-' && dayVal !== 'ចេញលេង' && dayVal !== 'សម្អាត';
+            });
+
+            // 1. Exact minute match: start <= currentMinutes < end (e.g. 07:15-08:00 ends at 08:00, and 08:00-09:00 starts immediately at 08:00)
+            const exactMatches = allRowsForDay.filter(row => {
+                const range = parseTimeSlotRangeMinutes(row.label, row.session);
+                return range && currentMinutes >= range.start && currentMinutes < range.end;
+            });
+
+            let matchedRow = exactMatches.find(r => r.room && r.room !== '-' && r.room.trim() !== '') || exactMatches[0];
+
+            // 2. If in a short break between periods, automatically pick the next upcoming period starting within 20 minutes
+            if (!matchedRow) {
+                const upcomingMatches = allRowsForDay
+                    .map(row => ({ row, range: parseTimeSlotRangeMinutes(row.label, row.session) }))
+                    .filter(item => item.range && currentMinutes >= (item.range.start - 20) && currentMinutes < item.range.start)
+                    .sort((a, b) => a.range.start - b.range.start);
+                
+                if (upcomingMatches.length > 0) {
+                    const nextStart = upcomingMatches[0].range.start;
+                    const nextTier = upcomingMatches.filter(m => m.range.start === nextStart).map(m => m.row);
+                    matchedRow = nextTier.find(r => r.room && r.room !== '-' && r.room.trim() !== '') || nextTier[0];
+                }
+            }
+
+            // 3. Fallback to current shift (Morning < 12:00, Afternoon >= 12:00)
+            if (!matchedRow) {
+                const currentShift = nowObj.getHours() < 12 ? 'វេនព្រឹក' : 'វេនរសៀល';
+                const shiftMatches = allRowsForDay.filter(row => row.session === currentShift || (row.label && row.label.includes(currentShift)));
+                matchedRow = shiftMatches.find(r => r.room && r.room !== '-' && r.room.trim() !== '') || shiftMatches[0];
+            }
+
+            // 4. Final fallback to first valid slot of that day
+            if (!matchedRow) {
+                matchedRow = allRowsForDay.find(r => r.room && r.room !== '-' && r.room.trim() !== '') || allRowsForDay[0];
+            }
+
+            const subject = matchedRow ? (getDayScheduleValue(matchedRow.days, todayDayOfWeek) || 'វត្តមានប្រចាំថ្ងៃ') : 'វត្តមានប្រចាំថ្ងៃ';
+            const teacherId = matchedRow ? getDayScheduleValue(matchedRow.teachers, todayDayOfWeek) : '';
+            const teacherObj = teacherId ? (db.teachers || []).find(t => t.id === teacherId) : null;
+
+            return {
+                matchedRow,
+                shortDayName,
+                subject,
+                teacherObj,
+                slotLabel: matchedRow ? `${matchedRow.session ? matchedRow.session + ' - ' : ''}${matchedRow.label}` : ''
             };
         }
 
@@ -3019,85 +3319,6 @@
             }, 250);
         }
 
-        function parseTimeSlotRangeMinutes(label) {
-            if (!label) return null;
-            // Support formats like 07:15-08:00, 7:15 - 8:00, 07h15-08h00, ០៧:១៥-០៨:០០
-            const khmerDigits = {'០':'0','១':'1','២':'2','៣':'3','៤':'4','៥':'5','៦':'6','៧':'7','៨':'8','៩':'9'};
-            const normalized = label.replace(/[០-៩]/g, d => khmerDigits[d]);
-            const match = normalized.match(/(\d{1,2})[:hH](\d{2})\s*[-–—~ដល់to]+\s*(\d{1,2})[:hH](\d{2})/);
-            if (!match) return null;
-
-            let h1 = parseInt(match[1], 10);
-            const m1 = parseInt(match[2], 10);
-            let h2 = parseInt(match[3], 10);
-            const m2 = parseInt(match[4], 10);
-
-            const isAfternoonOrEvening = normalized.includes('រសៀល') || normalized.includes('យប់') || normalized.toLowerCase().includes('pm');
-            if (isAfternoonOrEvening) {
-                if (h1 >= 1 && h1 <= 11) h1 += 12;
-                if (h2 >= 1 && h2 <= 11) h2 += 12;
-            }
-            return { start: h1 * 60 + m1, end: h2 * 60 + m2 };
-        }
-
-        function getActiveScheduleForRoom(targetRoom, nowObj = new Date()) {
-            const shortDaysKh = ['អាទិត្យ', 'ចន្ទ', 'អង្គារ', 'ពុធ', 'ព្រហស្បតិ៍', 'សុក្រ', 'សៅរ៍'];
-            const daysMap = ['អាទិត្យ (Sunday)', 'ច័ន្ទ (Monday)', 'អង្គារ (Tuesday)', 'ពុធ (Wednesday)', 'ព្រហស្បតិ៍ (Thursday)', 'សុក្រ (Friday)', 'សៅរ៍ (Saturday)'];
-            const todayDayOfWeek = nowObj.getDay();
-            const shortDayName = shortDaysKh[todayDayOfWeek];
-            const dayName = daysMap[todayDayOfWeek];
-            const currentMinutes = nowObj.getHours() * 60 + nowObj.getMinutes();
-
-            const allRowsForDay = (db.scheduleRows || []).filter(row => {
-                if (!row) return false;
-                const matchRoom = !targetRoom || targetRoom === '-' || !row.room || row.room.trim().toLowerCase() === targetRoom.trim().toLowerCase();
-                const dayVal = row.days && (row.days[shortDayName] || row.days[dayName]);
-                return matchRoom && dayVal && dayVal !== '' && dayVal !== 'ចេញលេង' && dayVal !== 'សម្អាត';
-            });
-
-            // 1. Exact minute match: start <= currentMinutes < end
-            // Prioritizes room-specific rows over global rows if both match
-            const exactMatches = allRowsForDay.filter(row => {
-                const range = parseTimeSlotRangeMinutes(row.label);
-                return range && currentMinutes >= range.start && currentMinutes < range.end;
-            });
-
-            let matchedRow = exactMatches.find(r => r.room && r.room.trim() !== '') || exactMatches[0];
-
-            // 2. If between periods (e.g., 5-minute break), pick the upcoming period starting within 15 minutes
-            if (!matchedRow) {
-                const upcomingMatches = allRowsForDay.filter(row => {
-                    const range = parseTimeSlotRangeMinutes(row.label);
-                    return range && currentMinutes >= (range.start - 15) && currentMinutes < range.start;
-                });
-                matchedRow = upcomingMatches.find(r => r.room && r.room.trim() !== '') || upcomingMatches[0];
-            }
-
-            // 3. Fallback to current shift (Morning < 12:00, Afternoon >= 12:00)
-            if (!matchedRow) {
-                const currentShift = nowObj.getHours() < 12 ? 'វេនព្រឹក' : 'វេនរសៀល';
-                const shiftMatches = allRowsForDay.filter(row => row.session === currentShift || (row.label && row.label.includes(currentShift)));
-                matchedRow = shiftMatches.find(r => r.room && r.room.trim() !== '') || shiftMatches[0];
-            }
-
-            // 4. Final fallback to first valid slot of that day
-            if (!matchedRow) {
-                matchedRow = allRowsForDay.find(r => r.room && r.room.trim() !== '') || allRowsForDay[0];
-            }
-
-            const subject = matchedRow ? (matchedRow.days[shortDayName] || matchedRow.days[dayName] || 'វត្តមានប្រចាំថ្ងៃ') : 'វត្តមានប្រចាំថ្ងៃ';
-            const teacherId = (matchedRow && matchedRow.teachers) ? (matchedRow.teachers[shortDayName] || matchedRow.teachers[dayName]) : '';
-            const teacherObj = teacherId ? (db.teachers || []).find(t => t.id === teacherId) : null;
-
-            return {
-                matchedRow,
-                shortDayName,
-                subject,
-                teacherObj,
-                slotLabel: matchedRow ? matchedRow.label : ''
-            };
-        }
-
         function updateLiveScheduleBanner() {
             const banner = document.getElementById('liveScheduleBanner');
             if (!banner) return;
@@ -3119,7 +3340,7 @@
             if (currentTab === 'attendance') {
                 updateLiveScheduleBanner();
             }
-        }, 15000);
+        }, 5000);
         function openEditAttendanceModal(id) {
             const rec = db.attendance.find(x => x.id === id);
             if (!rec) return;
