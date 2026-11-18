@@ -34,7 +34,12 @@
         }
     </script>
     <style>
-        body { font-family: 'Kantumruy Pro', 'Inter', sans-serif; background-color: #f3f4f6; }
+        html, body {
+            font-family: 'Kantumruy Pro', 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            max-width: 100vw;
+            overflow-x: hidden;
+        }
         /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
@@ -76,7 +81,7 @@
         }
     </style>
 </head>
-<body class="text-slate-800 antialiased selection:bg-primary-500 selection:text-white">
+<body class="text-slate-800 antialiased selection:bg-primary-500 selection:text-white overflow-x-hidden">
 
     <!-- ========================================== -->
     <!-- 1. LOGIN SCREEN (ប្រព័ន្ធចូលប្រើប្រាស់)        -->
@@ -176,22 +181,22 @@
         </aside>
 
         <!-- Main Content Wrapper -->
-        <div class="flex-1 flex flex-col min-w-0">
+        <div class="flex-1 flex flex-col min-w-0 max-w-full overflow-x-hidden">
             <!-- Top Header Bar -->
-            <header class="bg-white border-b border-slate-200 sticky top-0 z-10 px-4 py-3 flex items-center justify-between gap-4 shadow-xs">
-                <div class="flex items-center gap-3">
-                    <button onclick="toggleSidebar()" class="md:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100">
+            <header class="bg-white border-b border-slate-200 sticky top-0 z-10 px-3 sm:px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 shadow-xs w-full max-w-full">
+                <div class="flex items-center gap-2 min-w-0 flex-1">
+                    <button onclick="toggleSidebar()" class="md:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 shrink-0">
                         <i class="fas fa-bars text-lg"></i>
                     </button>
-                    <h1 id="pageTitle" class="text-lg md:text-xl font-bold text-slate-800 truncate">ផ្ទាំងគ្រប់គ្រងទូទៅ (Dashboard)</h1>
+                    <h1 id="pageTitle" class="text-base sm:text-lg md:text-xl font-bold text-slate-800 truncate">ផ្ទាំងគ្រប់គ្រងទូទៅ (Dashboard)</h1>
                 </div>
 
-                <div class="flex items-center gap-2 sm:gap-3">
+                <div class="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2.5 w-full sm:w-auto">
                     <!-- Firebase Realtime Database Connect & Sync Button -->
-                    <button onclick="openFirebaseConfigModal()" class="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm" title="ភ្ជាប់ និង Sync Realtime Database">
-                        <i class="fas fa-database"></i> <span>ភ្ជាប់ Realtime DB</span>
+                    <button onclick="openFirebaseConfigModal()" class="px-2.5 sm:px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm shrink-0" title="ភ្ជាប់ និង Sync Realtime Database">
+                        <i class="fas fa-database"></i> <span class="hidden xs:inline sm:inline">ភ្ជាប់ DB</span><span class="xs:hidden sm:hidden">DB</span>
                     </button>
-                    <button onclick="syncToCloudDatabase()" class="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm" title="Sync ទៅ Cloud ភ្លាមៗ">
+                    <button onclick="syncToCloudDatabase()" class="px-2.5 sm:px-3.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm shrink-0" title="Sync ទៅ Cloud ភ្លាមៗ">
                         <i class="fas fa-cloud-upload-alt"></i> <span class="hidden sm:inline">Sync Cloud</span>
                     </button>
 
@@ -202,6 +207,12 @@
                         <option value="2026-2027">2026-2027</option>
                     </select>
 
+                    <!-- Education Level Switcher (បឋមសិក្សា vs មធ្យមសិក្សា) -->
+                    <select id="globalLevelSelect" onchange="changeEducationLevel(this.value)" class="text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-indigo-500 max-w-[145px] sm:max-w-none truncate">
+                        <option value="SECONDARY">🎓 មធ្យមសិក្សា (ទី៧-១២)</option>
+                        <option value="PRIMARY">🏫 បឋមសិក្សា (ទី១-៦)</option>
+                    </select>
+
                     <!-- Exchange Rate Badge -->
                     <div class="hidden lg:flex items-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1.5 rounded-lg font-medium">
                         <i class="fas fa-exchange-alt"></i>
@@ -209,7 +220,7 @@
                     </div>
 
                     <!-- Language Toggle -->
-                    <button onclick="toggleLanguage()" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
+                    <button onclick="toggleLanguage()" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition flex items-center gap-1 shrink-0">
                         <i class="fas fa-language text-primary-600 text-sm"></i>
                         <span id="headerLangLabel">EN</span>
                     </button>
@@ -217,7 +228,7 @@
             </header>
 
             <!-- Dynamic Page Workspace -->
-            <main id="mainContent" class="flex-1 p-4 md:p-6 max-w-7xl w-full mx-auto space-y-6">
+            <main id="mainContent" class="flex-1 p-3 sm:p-4 md:p-6 max-w-7xl w-full mx-auto space-y-5 overflow-x-hidden">
                 <!-- Content rendered dynamically via JS -->
             </main>
         </div>
@@ -254,6 +265,7 @@
                 settings: {
                     schoolNameKh: 'វិទ្យាល័យ ហ៊ុន សែន',
                     schoolNameEn: 'Hun Sen High School',
+                    currentLevel: 'SECONDARY', // 'PRIMARY' or 'SECONDARY'
                     currentYear: '2025-2026',
                     academicYears: ['2024-2025', '2025-2026', '2026-2027'],
                     exchangeRate: 4100,
@@ -276,14 +288,15 @@
                     'បុគ្គលិក': ['dashboard', 'directory', 'attendance', 'inventory']
                 },
                 classes: [
-                    { id: 'CLS-01', grade: '7', room: '៧ក', group: 'ក្រុម A', teacherId: 'TCH001', year: '2025-2026', tgBotToken: '', tgChatId: '', tgAutoNotify: true },
-                    { id: 'CLS-02', grade: '8', room: '៨ក', group: 'ក្រុម A', teacherId: 'TCH002', year: '2025-2026', tgBotToken: '', tgChatId: '', tgAutoNotify: true },
-                    { id: 'CLS-03', grade: '9', room: '៩ក', group: 'ក្រុម A', teacherId: 'TCH003', year: '2025-2026', tgBotToken: '', tgChatId: '', tgAutoNotify: true }
+                    { id: 'CLS-P1', level: 'PRIMARY', grade: '1', room: '១ក', group: 'វេនព្រឹក', teacherId: 'TCH001', year: '2025-2026', tgBotToken: '', tgChatId: '', tgAutoNotify: true },
+                    { id: 'CLS-01', level: 'SECONDARY', grade: '7', room: '៧ក', group: 'ក្រុម A', teacherId: 'TCH001', year: '2025-2026', tgBotToken: '', tgChatId: '', tgAutoNotify: true },
+                    { id: 'CLS-02', level: 'SECONDARY', grade: '8', room: '៨ក', group: 'ក្រុម A', teacherId: 'TCH002', year: '2025-2026', tgBotToken: '', tgChatId: '', tgAutoNotify: true },
+                    { id: 'CLS-03', level: 'SECONDARY', grade: '9', room: '៩ក', group: 'ក្រុម A', teacherId: 'TCH003', year: '2025-2026', tgBotToken: '', tgChatId: '', tgAutoNotify: true }
                 ],
                 students: [
-                    { id: 'STU0001', nameKh: 'សុខ ដារ៉ា', nameEn: 'Sok Dara', gender: 'ប្រុស', dob: '2012-05-12', grade: '7', room: '៧ក', group: 'ក្រុម A', phone: '012 345 678', year: '2025-2026', feeTotal: 250, feePaid: 250, photo: '', history: ['2025-2026: ចុះឈ្មោះចូលរៀនថ្នាក់ ៧ក'] },
-                    { id: 'STU0002', nameKh: 'ចាន់ ស្រីពេជ្រ', nameEn: 'Chan Sreypich', gender: 'ស្រី', dob: '2011-08-20', grade: '8', room: '៨ក', group: 'ក្រុម A', phone: '015 987 654', year: '2025-2026', feeTotal: 250, feePaid: 150, photo: '', history: ['2025-2026: ចុះឈ្មោះចូលរៀនថ្នាក់ ៨ក'] },
-                    { id: 'STU0003', nameKh: 'លី ណារី', nameEn: 'Ly Nary', gender: 'ស្រី', dob: '2010-03-14', grade: '9', room: '៩ក', group: 'ក្រុម A', phone: '077 112 233', year: '2025-2026', feeTotal: 250, feePaid: 250, photo: '', history: ['2025-2026: ចុះឈ្មោះចូលរៀនថ្នាក់ ៩ក'] }
+                    { id: 'STU0001', level: 'SECONDARY', nameKh: 'សុខ ដារ៉ា', nameEn: 'Sok Dara', gender: 'ប្រុស', dob: '2012-05-12', grade: '7', room: '៧ក', group: 'ក្រុម A', phone: '012 345 678', year: '2025-2026', feeTotal: 250, feePaid: 250, photo: '', history: ['2025-2026: ចុះឈ្មោះចូលរៀនថ្នាក់ ៧ក'] },
+                    { id: 'STU0002', level: 'SECONDARY', nameKh: 'ចាន់ ស្រីពេជ្រ', nameEn: 'Chan Sreypich', gender: 'ស្រី', dob: '2011-08-20', grade: '8', room: '៨ក', group: 'ក្រុម A', phone: '015 987 654', year: '2025-2026', feeTotal: 250, feePaid: 150, photo: '', history: ['2025-2026: ចុះឈ្មោះចូលរៀនថ្នាក់ ៨ក'] },
+                    { id: 'STU0003', level: 'SECONDARY', nameKh: 'លី ណារី', nameEn: 'Ly Nary', gender: 'ស្រី', dob: '2010-03-14', grade: '9', room: '៩ក', group: 'ក្រុម A', phone: '077 112 233', year: '2025-2026', feeTotal: 250, feePaid: 250, photo: '', history: ['2025-2026: ចុះឈ្មោះចូលរៀនថ្នាក់ ៩ក'] }
                 ],
                 teachers: [
                     { id: 'TCH001', nameKh: 'លោកគ្រូ កែវ សុខា', nameEn: 'Keo Sokha', gender: 'ប្រុស', subject: 'គណិតវិទ្យា', homeroom: '៧ក', hoursPerWeek: 18, phone: '012 888 999', experience: 'បរិញ្ញាបត្រគណិតវិទ្យា (៥ឆ្នាំ)', hourlyRate: 5 },
@@ -373,7 +386,7 @@
             if (!raw || typeof raw !== 'object') return def;
             return {
                 settings: { ...def.settings, ...(raw.settings || {}) },
-                users: Array.isArray(raw.users) && raw.users.length > 0 ? raw.users : def.users,
+                users: Array.isArray(raw.users) && raw.users.length ? raw.users : def.users,
                 permissions: { ...def.permissions, ...(raw.permissions || {}) },
                 classes: Array.isArray(raw.classes) ? raw.classes : def.classes,
                 students: Array.isArray(raw.students) ? raw.students : def.students,
@@ -392,14 +405,43 @@
             };
         }
 
+        function getActiveLevel() {
+            return (db.settings && db.settings.currentLevel) || 'SECONDARY';
+        }
+
+        function getLevelGradesList(level = getActiveLevel()) {
+            return level === 'PRIMARY' ? ['1', '2', '3', '4', '5', '6'] : ['7', '8', '9', '10', '11', '12'];
+        }
+
+        function isItemInActiveLevel(item) {
+            if (!item) return false;
+            const active = getActiveLevel();
+            if (item.level) return item.level === active;
+            const g = String(item.grade || '').trim();
+            if (['1', '2', '3', '4', '5', '6'].includes(g)) return active === 'PRIMARY';
+            return active === 'SECONDARY';
+        }
+
+        function changeEducationLevel(lvl) {
+            db.settings.currentLevel = lvl;
+            studentFilterGrade = 'ALL';
+            gradeFilterRoom = 'ALL';
+            dirRoomFilter = 'ALL';
+            saveDB();
+            updateHeaderInfo();
+            navigateTo(currentTab);
+            showToast(`បានប្តូរទៅកម្រិត៖ ${lvl === 'PRIMARY' ? 'បឋមសិក្សា (ថ្នាក់ទី១-ទី៦)' : 'មធ្យមសិក្សា (ថ្នាក់ទី៧-ទី១២)'}`, 'info');
+        }
+
         function renderCurriculum(container) {
             if (!db.curriculum) db.curriculum = [];
+            const levelCurriculum = db.curriculum.filter(c => isItemInActiveLevel(c));
             container.innerHTML = `
                 <div class="space-y-4">
                     <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                         <div>
                             <h3 class="font-bold text-slate-800 text-base md:text-lg flex items-center gap-2">
-                                <i class="fas fa-book-open text-primary-600"></i> គ្រប់គ្រងកម្មវិធីសិក្សា និងមេរៀន (Curriculum)
+                                <i class="fas fa-book-open text-primary-600"></i> គ្រប់គ្រងកម្មវិធីសិក្សា និងមេរៀន (${getActiveLevel()==='PRIMARY'?'បឋមសិក្សា':'មធ្យមសិក្សា'})
                             </h3>
                             <p class="text-xs text-slate-500 mt-0.5">តាមដានវឌ្ឍនភាពការបង្រៀនតាមជំពូក មុខវិជ្ជា និងកម្រិតថ្នាក់នីមួយៗ</p>
                         </div>
@@ -422,8 +464,8 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-100">
-                                    ${db.curriculum.length === 0 ? `<tr><td colspan="6" class="py-8 text-center text-slate-400">មិនទាន់មានទិន្នន័យកម្មវិធីសិក្សាទេ</td></tr>` :
-                                    db.curriculum.map(c => `
+                                    ${levelCurriculum.length === 0 ? `<tr><td colspan="6" class="py-8 text-center text-slate-400">មិនទាន់មានទិន្នន័យកម្មវិធីសិក្សាសម្រាប់កម្រិតនេះទេ</td></tr>` :
+                                    levelCurriculum.map(c => `
                                         <tr class="hover:bg-slate-50/80 transition">
                                             <td class="py-3 px-4 font-bold text-primary-600">ថ្នាក់ទី ${c.grade}</td>
                                             <td class="py-3 px-4 font-semibold text-slate-800">${c.subject}</td>
@@ -448,13 +490,14 @@
 
         function openCurriculumModal(curId = null) {
             const cur = curId ? db.curriculum.find(x => x.id === curId) : null;
+            const gradesOpts = getLevelGradesList();
             openModal(cur ? 'កែប្រែកម្មវិធីសិក្សា' : 'បន្ថែមកម្មវិធីសិក្សាថ្មី', `
                 <form id="curForm" class="space-y-4">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-semibold mb-1">កម្រិតថ្នាក់ *</label>
                             <select id="curGrade" class="w-full px-3 py-2 border rounded-xl text-sm">
-                                ${['7','8','9','10','11','12'].map(g => `<option value="${g}" ${cur?.grade===g?'selected':''}>ថ្នាក់ទី ${g}</option>`).join('')}
+                                ${gradesOpts.map(g => `<option value="${g}" ${cur?.grade===g?'selected':''}>ថ្នាក់ទី ${g}</option>`).join('')}
                             </select>
                         </div>
                         <div>
@@ -490,6 +533,7 @@
                 e.preventDefault();
                 const data = {
                     id: cur ? cur.id : 'CUR-' + Date.now().toString().slice(-4),
+                    level: cur ? (cur.level || getActiveLevel()) : getActiveLevel(),
                     grade: document.getElementById('curGrade').value,
                     subject: document.getElementById('curSubject').value,
                     chapter: document.getElementById('curChapter').value.trim(),
@@ -518,6 +562,36 @@
                 saveDB();
                 renderCurriculum(document.getElementById('mainContent'));
                 showToast('បានលុបកម្មវិធីសិក្សារួចរាល់', 'info');
+            });
+        }
+
+        function printGradesTable() {
+            const printableArea = document.getElementById('gradesPrintableArea');
+            if (!printableArea) {
+                showToast('រកមិនឃើញតារាងពិន្ទុសម្រាប់បោះពុម្ពទេ!', 'error');
+                return;
+            }
+            printHTML(`
+                <div class="text-center mb-4">
+                    <h2 class="text-xl font-bold">${db.settings.schoolNameKh}</h2>
+                    <h3 class="text-sm font-bold text-primary-700 mt-1">តារាងពិន្ទុ និងចំណាត់ថ្នាក់សិស្សប្រចាំឆ្នាំ (${db.settings.currentYear})</h3>
+                </div>
+                ${printableArea.outerHTML}
+            `);
+        }
+
+        function deleteGrade(gradeId) {
+            const grd = (db.grades || []).find(x => x.id === gradeId);
+            if (!grd) {
+                showToast('រកមិនឃើញកំណត់ត្រាពិន្ទុនេះទេ!', 'error');
+                return;
+            }
+            confirmDelete(`ពិន្ទុប្រឡងរបស់សិស្ស ${grd.studentName} (${grd.period})`, () => {
+                db.grades = (db.grades || []).filter(x => x.id !== gradeId);
+                logAudit('លុបពិន្ទុសិស្ស', `${grd.studentName} (${grd.period})`);
+                saveDB();
+                renderGrades(document.getElementById('mainContent'));
+                showToast('បានលុបពិន្ទុប្រឡងរួចរាល់', 'info');
             });
         }
 
@@ -683,13 +757,52 @@
                     rtdbRef.on('value', (snapshot) => {
                         try {
                             const cloudData = snapshot.val();
-                            if (cloudData && cloudData.settings) {
-                                db = normalizeDB(cloudData);
-                                localStorage.setItem(DB_KEY, JSON.stringify(db));
-                                if (currentUser) {
-                                    updateHeaderInfo();
-                                    navigateTo(currentTab);
+                            if (cloudData && typeof cloudData === 'object') {
+                                // Extract students whether stored as Array or Object map in Firebase
+                                const rawCloudStudents = cloudData.students 
+                                    ? (Array.isArray(cloudData.students) ? cloudData.students.filter(Boolean) : Object.values(cloudData.students))
+                                    : [];
+                                const localStuCount = (db.students || []).length;
+
+                                // Always prefer whichever source has the real data (> 5 students) so cloud data is NEVER overwritten by default sample data
+                                if (rawCloudStudents.length > 0 && (rawCloudStudents.length >= localStuCount || localStuCount <= 5)) {
+                                    cloudData.students = rawCloudStudents;
+                                    db = normalizeDB(cloudData);
+                                    localStorage.setItem(DB_KEY, JSON.stringify(db));
+                                    if (currentUser) {
+                                        updateHeaderInfo();
+                                        navigateTo(currentTab);
+                                    }
+                                    if (rawCloudStudents.length > 5) {
+                                        showToast(`☁️ បានទាញយកទិន្នន័យសិស្សទាំង ${rawCloudStudents.length} នាក់ពី Cloud ជោគជ័យ!`, 'success');
+                                    }
+                                } else if (localStuCount > rawCloudStudents.length && localStuCount > 5) {
+                                    rtdbRef.set(db);
                                 }
+                            } else {
+                                // Check root of Firebase DB in case data was saved under a different node
+                                firebase.database().ref('/').once('value').then((rootSnap) => {
+                                    const rootVal = rootSnap.val();
+                                    if (!rootVal) return;
+                                    let foundStudents = [];
+                                    Object.values(rootVal).forEach(node => {
+                                        if (node && node.students) {
+                                            const list = Array.isArray(node.students) ? node.students.filter(Boolean) : Object.values(node.students);
+                                            if (list.length > foundStudents.length) {
+                                                foundStudents = list;
+                                                db = normalizeDB({ ...node, students: list });
+                                            }
+                                        }
+                                    });
+                                    if (foundStudents.length > 0) {
+                                        localStorage.setItem(DB_KEY, JSON.stringify(db));
+                                        if (currentUser) {
+                                            updateHeaderInfo();
+                                            navigateTo(currentTab);
+                                        }
+                                        showToast(`☁️ រកឃើញ និងទាញយកសិស្សចំនួន ${foundStudents.length} នាក់ពី Cloud!`, 'success');
+                                    }
+                                });
                             }
                         } catch (err) {
                             console.error('Realtime sync parse error:', err);
@@ -768,15 +881,40 @@
                 openFirebaseConfigModal();
                 return;
             }
-            try {
-                rtdbRef.set(db).then(() => {
-                    showToast('☁️ បាន Sync ទិន្នន័យទាំងអស់ទៅកាន់ Cloud Realtime Database ជោគជ័យ!', 'success');
-                }).catch((err) => {
-                    showToast(`❌ Sync មិនបានសម្រេច: ${err.message}`, 'error');
+            showToast('⏳ កំពុងពិនិត្យ និងទាញទិន្នន័យពី Cloud Database...', 'info');
+            firebase.database().ref('/').once('value').then((rootSnap) => {
+                const rootVal = rootSnap.val() || {};
+                let bestCloudStudents = [];
+                let bestCloudNode = null;
+
+                // Scan all nodes in Firebase to find your 20+ students
+                Object.values(rootVal).forEach(node => {
+                    if (node && node.students) {
+                        const list = Array.isArray(node.students) ? node.students.filter(Boolean) : Object.values(node.students);
+                        if (list.length > bestCloudStudents.length) {
+                            bestCloudStudents = list;
+                            bestCloudNode = node;
+                        }
+                    }
                 });
-            } catch (e) {
-                showToast('❌ មានបញ្ហាក្នុងការភ្ជាប់ទៅកាន់ Cloud Database', 'error');
-            }
+
+                if (bestCloudStudents.length > (db.students || []).length) {
+                    db = normalizeDB({ ...bestCloudNode, students: bestCloudStudents });
+                    localStorage.setItem(DB_KEY, JSON.stringify(db));
+                    rtdbRef.set(db);
+                    updateHeaderInfo();
+                    navigateTo(currentTab);
+                    showToast(`🎉 បានទាញយកសិស្សទាំង ${bestCloudStudents.length} នាក់ពី Cloud មកវិញជោគជ័យ!`, 'success');
+                } else {
+                    rtdbRef.set(db).then(() => {
+                        showToast(`☁️ បាន Sync ទិន្នន័យសិស្ស ${(db.students || []).length} នាក់ទៅ Cloud ជោគជ័យ!`, 'success');
+                    }).catch((err) => {
+                        showToast(`❌ Sync មិនបានសម្រេច: ${err.message}`, 'error');
+                    });
+                }
+            }).catch((err) => {
+                showToast(`❌ មានបញ្ហាក្នុងការភ្ជាប់ទៅ Cloud: ${err.message}`, 'error');
+            });
         }
 
         function saveDB() {
@@ -951,8 +1089,9 @@
         }
 
         function updateHeaderInfo() {
+            const lvl = getActiveLevel();
             document.getElementById('sidebarSchoolName').innerText = currentLang === 'km' ? db.settings.schoolNameKh : db.settings.schoolNameEn;
-            document.getElementById('sidebarAcademicYear').innerText = `ឆ្នាំសិក្សា ${db.settings.currentYear}`;
+            document.getElementById('sidebarAcademicYear').innerText = `${lvl === 'PRIMARY' ? 'បឋមសិក្សា' : 'មធ្យមសិក្សា'} • ${db.settings.currentYear}`;
             document.getElementById('headerExchangeRate').innerText = db.settings.exchangeRate.toLocaleString();
             document.getElementById('currentUserName').innerText = currentUser.fullName;
             document.getElementById('currentUserRole').innerText = currentUser.role;
@@ -960,6 +1099,9 @@
             
             const yearSelect = document.getElementById('globalYearSelect');
             yearSelect.innerHTML = db.settings.academicYears.map(y => `<option value="${y}" ${y === db.settings.currentYear ? 'selected' : ''}>ឆ្នាំសិក្សា ${y}</option>`).join('');
+
+            const levelSelect = document.getElementById('globalLevelSelect');
+            if (levelSelect) levelSelect.value = lvl;
         }
 
         function changeAcademicYear(year) {
@@ -1432,7 +1574,7 @@
          * ============================================================================
          */
         function renderDashboard(container) {
-            const yearStudents = db.students.filter(s => s.year === db.settings.currentYear);
+            const yearStudents = db.students.filter(s => s.year === db.settings.currentYear && isItemInActiveLevel(s));
             const totalStudents = yearStudents.length;
             const totalTeachers = db.teachers.length;
             const totalStaff = db.staff.length;
@@ -1442,8 +1584,9 @@
             const todayAtt = db.attendance.filter(a => a.date === today && a.targetType === 'Student');
             const presentCount = todayAtt.filter(a => a.status === 'មានវត្តមាន').length;
 
-            // Grade distribution (7 to 12 + Custom)
-            const gradesList = [...new Set(['7', '8', '9', '10', '11', '12', ...db.classes.map(c => c.grade)])];
+            // Grade distribution based on active education level (1-6 Primary or 7-12 Secondary)
+            const levelClasses = db.classes.filter(c => isItemInActiveLevel(c));
+            const gradesList = [...new Set([...getLevelGradesList(), ...levelClasses.map(c => c.grade)])];
             const gradeCounts = gradesList.map(g => ({
                 grade: g,
                 count: yearStudents.filter(s => s.grade === g).length
@@ -1595,8 +1738,9 @@
         let dirRoomFilter = 'ALL';
 
         function renderStudentTeacherDirectory(container) {
-            const yearStudents = db.students.filter(s => s.year === db.settings.currentYear);
-            const availableRooms = [...new Set([...db.classes.filter(c => !c.year || c.year === db.settings.currentYear).map(c => c.room), ...yearStudents.map(s => s.room)])];
+            const yearStudents = db.students.filter(s => s.year === db.settings.currentYear && isItemInActiveLevel(s));
+            const levelClasses = db.classes.filter(c => (!c.year || c.year === db.settings.currentYear) && isItemInActiveLevel(c));
+            const availableRooms = [...new Set([...levelClasses.map(c => c.room), ...yearStudents.map(s => s.room)])];
 
             const filteredStudents = yearStudents.filter(s => {
                 const matchRoom = dirRoomFilter === 'ALL' || s.room === dirRoomFilter;
@@ -1720,12 +1864,13 @@
          * ============================================================================
          */
         function renderClassesAndTelegram(container) {
-            const yearClasses = db.classes.filter(c => !c.year || c.year === db.settings.currentYear);
+            const yearClasses = db.classes.filter(c => (!c.year || c.year === db.settings.currentYear) && isItemInActiveLevel(c));
+            const levelTitle = getActiveLevel() === 'PRIMARY' ? 'បឋមសិក្សា (ថ្នាក់ទី១-ទី៦)' : 'មធ្យមសិក្សា (ថ្នាក់ទី៧-ទី១២)';
             container.innerHTML = `
                 <div class="bg-white p-4 rounded-2xl shadow-xs border border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
                         <h3 class="font-bold text-slate-800 flex items-center gap-2">
-                            <i class="fab fa-telegram text-sky-500 text-xl"></i> គ្រប់គ្រងថ្នាក់រៀនដោយសេរី និងភ្ជាប់ Telegram Bot តាមថ្នាក់
+                            <i class="fab fa-telegram text-sky-500 text-xl"></i> គ្រប់គ្រងថ្នាក់រៀន (${levelTitle}) និង Telegram Bot
                         </h3>
                         <p class="text-xs text-slate-500 mt-0.5">បង្កើតថ្នាក់រៀនថ្មីដោយសេរី និងភ្ជាប់ Telegram Bot Token / Chat ID ដើម្បីផ្ញើដំណឹងវត្តមានទៅកាន់ក្រុមថ្នាក់នីមួយៗ</p>
                     </div>
@@ -1795,14 +1940,16 @@
 
         function openClassModal(classId = null) {
             const cls = classId ? db.classes.find(c => c.id === classId) : null;
-            openModal(cls ? `កែប្រែថ្នាក់ ${cls.room} & ភ្ជាប់ Telegram Bot` : 'បន្ថែមថ្នាក់រៀនថ្មីដោយសេរី & Telegram Bot', `
+            const activeLvl = cls ? (cls.level || getActiveLevel()) : getActiveLevel();
+            const levelGrades = getLevelGradesList(activeLvl);
+            openModal(cls ? `កែប្រែថ្នាក់ ${cls.room} & ភ្ជាប់ Telegram Bot` : `បន្ថែមថ្នាក់រៀនថ្មី (${activeLvl === 'PRIMARY' ? 'បឋមសិក្សា' : 'មធ្យមសិក្សា'})`, `
                 <form id="classForm" class="space-y-4">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-semibold text-slate-700 mb-1">កម្រិតសិក្សា (Grade) *</label>
-                            <input type="text" id="clsGrade" required value="${cls ? cls.grade : '10'}" list="gradeSuggestions" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm" placeholder="ឧ. 7, 8, 12 ឬ ថ្នាក់ពិសេស">
+                            <input type="text" id="clsGrade" required value="${cls ? cls.grade : levelGrades[0]}" list="gradeSuggestions" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm" placeholder="ឧ. ${levelGrades.join(', ')}">
                             <datalist id="gradeSuggestions">
-                                <option value="7"><option value="8"><option value="9"><option value="10"><option value="11"><option value="12"><option value="ថ្នាក់បំប៉នពិសេស">
+                                ${levelGrades.map(g => `<option value="${g}">`).join('')}
                             </datalist>
                         </div>
                         <div>
@@ -1869,6 +2016,7 @@
 
                 const data = {
                     id: cls ? cls.id : 'CLS-' + Date.now().toString().slice(-4),
+                    level: activeLvl,
                     grade: gradeVal,
                     room: roomName,
                     group: document.getElementById('clsGroup').value.trim(),
@@ -1992,18 +2140,33 @@
         let studentSearchQuery = '';
 
         function renderStudents(container) {
+            const levelClasses = db.classes.filter(c => isItemInActiveLevel(c));
+            const allLevelStudents = db.students.filter(s => isItemInActiveLevel(s));
             const filtered = db.students.filter(s => {
-                const matchYear = s.year === db.settings.currentYear;
-                const matchGrade = studentFilterGrade === 'ALL' || s.grade === studentFilterGrade;
+                // Show students matching current year OR if they have no year set, and also allow viewing all years if selected
+                const matchYear = studentFilterGrade === 'ALL_YEARS' ? true : (!s.year || s.year === db.settings.currentYear);
+                const matchLevel = studentFilterGrade === 'ALL_YEARS' ? true : isItemInActiveLevel(s);
+                const matchGrade = (studentFilterGrade === 'ALL' || studentFilterGrade === 'ALL_YEARS') || s.grade === studentFilterGrade;
                 const matchSearch = s.nameKh.toLowerCase().includes(studentSearchQuery.toLowerCase()) ||
                                     s.nameEn.toLowerCase().includes(studentSearchQuery.toLowerCase()) ||
                                     s.id.toLowerCase().includes(studentSearchQuery.toLowerCase());
-                return matchYear && matchGrade && matchSearch;
-            });
+                return matchYear && matchLevel && matchGrade && matchSearch;
+            }).sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true, sensitivity: 'base' }));
 
-            const uniqueGrades = [...new Set(['7', '8', '9', '10', '11', '12', ...db.classes.map(c => c.grade)])];
+            const uniqueGrades = [...new Set([...getLevelGradesList(), ...levelClasses.map(c => c.grade)])];
 
             container.innerHTML = `
+                <!-- Student Count Status Banner -->
+                <div class="bg-blue-50 border border-blue-200 p-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-2 text-xs text-blue-900">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-info-circle text-blue-600 text-base"></i>
+                        <span>ទិន្នន័យសិស្សសរុបក្នុងប្រព័ន្ធទាំងអស់៖ <strong>${db.students.length} នាក់</strong> (កំពុងបង្ហាញ៖ <strong>${filtered.length} នាក់</strong>)</span>
+                    </div>
+                    <button onclick="studentFilterGrade='ALL_YEARS'; renderStudents(document.getElementById('mainContent'))" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-2xs transition">
+                        👁️ បង្ហាញសិស្សទាំងអស់ (គ្រប់ឆ្នាំ និងគ្រប់កម្រិត)
+                    </button>
+                </div>
+
                 <!-- Action & Filter Bar -->
                 <div class="bg-white p-4 rounded-2xl shadow-xs border border-slate-100 flex flex-col md:flex-row gap-3 justify-between items-stretch md:items-center">
                     <div class="flex flex-wrap gap-2 flex-1">
@@ -2012,11 +2175,15 @@
                             <input type="text" value="${studentSearchQuery}" oninput="studentSearchQuery=this.value; renderStudents(document.getElementById('mainContent'))" placeholder="ស្វែងរកតាមឈ្មោះ ឬអត្តលេខសិស្ស..." class="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-500">
                         </div>
                         <select onchange="studentFilterGrade=this.value; renderStudents(document.getElementById('mainContent'))" class="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 outline-none">
-                            <option value="ALL" ${studentFilterGrade==='ALL'?'selected':''}>គ្រប់កម្រិតថ្នាក់ទាំងអស់</option>
+                            <option value="ALL" ${studentFilterGrade==='ALL'?'selected':''}>គ្រប់កម្រិតថ្នាក់ (ឆ្នាំ ${db.settings.currentYear})</option>
+                            <option value="ALL_YEARS" ${studentFilterGrade==='ALL_YEARS'?'selected':''}>🌟 បង្ហាញសិស្សទាំងអស់ (គ្រប់ឆ្នាំសិក្សា)</option>
                             ${uniqueGrades.map(g => `<option value="${g}" ${studentFilterGrade===g?'selected':''}>${isNaN(g) ? g : 'ថ្នាក់ទី ' + g}</option>`).join('')}
                         </select>
                     </div>
                     <div class="flex flex-wrap gap-2">
+                        <button onclick="openRenumberStudentIdsModal()" class="px-3.5 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl text-sm font-semibold transition flex items-center gap-1.5 shadow-xs" title="តម្រៀបលេខរៀង STU0001, STU0002... ឡើងវិញកុំឱ្យមានចន្លោះ">
+                            <i class="fas fa-sort-numeric-down"></i> តម្រៀបលេខរៀង ID ឡើងវិញ
+                        </button>
                         <button onclick="printAllStudentsQRCodes()" class="px-3.5 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-xl text-sm font-semibold transition flex items-center gap-1.5 shadow-xs">
                             <i class="fas fa-qrcode"></i> បោះពុម្ព QR សិស្សទាំងអស់
                         </button>
@@ -2091,15 +2258,135 @@
             `;
         }
 
+        function generateNextStudentId() {
+            const studentsList = Array.isArray(db.students) ? db.students : [];
+            let maxNum = 0;
+            studentsList.forEach(stu => {
+                if (stu && stu.id) {
+                    const match = String(stu.id).match(/(\d+)$/);
+                    if (match) {
+                        const num = parseInt(match[1], 10);
+                        if (!isNaN(num) && num > maxNum) {
+                            maxNum = num;
+                        }
+                    }
+                }
+            });
+            let nextNum = maxNum + 1;
+            let candidateId = `STU${String(nextNum).padStart(4, '0')}`;
+            while (studentsList.some(stu => stu && String(stu.id).toLowerCase() === candidateId.toLowerCase())) {
+                nextNum++;
+                candidateId = `STU${String(nextNum).padStart(4, '0')}`;
+            }
+            return candidateId;
+        }
+
+        function findFirstMissingStudentId() {
+            const studentsList = Array.isArray(db.students) ? db.students : [];
+            let num = 1;
+            while (true) {
+                const candidate = `STU${String(num).padStart(4, '0')}`;
+                const exists = studentsList.some(stu => stu && String(stu.id).toLowerCase() === candidate.toLowerCase());
+                if (!exists) return candidate;
+                num++;
+            }
+        }
+
+        function openRenumberStudentIdsModal() {
+            const yearStudents = (db.students || [])
+                .filter(s => s && s.year === db.settings.currentYear)
+                .sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true, sensitivity: 'base' }));
+
+            if (yearStudents.length === 0) {
+                showToast('មិនទាន់មានទិន្នន័យសិស្សសម្រាប់តម្រៀបលេខរៀងទេ!', 'error');
+                return;
+            }
+
+            openModal('តម្រៀបលេខរៀង ID សិស្សឡើងវិញ (Re-number Student IDs)', `
+                <div class="space-y-4 text-sm">
+                    <div class="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl text-indigo-900 space-y-1.5">
+                        <p class="font-bold flex items-center gap-2"><i class="fas fa-info-circle text-indigo-600"></i> របៀបដំណើរការតម្រៀបលេខរៀងឡើងវិញ៖</p>
+                        <p class="text-xs leading-relaxed">
+                            ប្រព័ន្ធនឹងរៀបអត្តលេខសិស្សទាំងអស់ (${yearStudents.length} នាក់) ឱ្យរត់តាមលំដាប់បន្តបន្ទាប់គ្នាគ្មានចន្លោះកណ្តាល (<strong>STU0001, STU0002, STU0003...</strong>) ដោយរក្សាលំដាប់ឈ្មោះសិស្សបច្ចុប្បន្ន ព្រមទាំងធ្វើបច្ចុប្បន្នភាពអត្តលេខថ្មីក្នុងកំណត់ត្រាវត្តមាន ពិន្ទុ និងបណ្ណាល័យដោយស្វ័យប្រវត្តិ។
+                        </p>
+                    </div>
+                    <div class="max-h-56 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 text-xs">
+                        ${yearStudents.map((s, idx) => {
+                            const newId = `STU${String(idx + 1).padStart(4, '0')}`;
+                            const changed = s.id !== newId;
+                            return `
+                                <div class="px-3.5 py-2 flex items-center justify-between ${changed ? 'bg-amber-50/60' : ''}">
+                                    <span class="font-bold text-slate-800">${s.nameKh} <span class="text-slate-400 font-normal">(${s.room})</span></span>
+                                    <div class="font-mono font-bold">
+                                        <span class="${changed ? 'text-red-500 line-through mr-1.5' : 'text-slate-500'}">${s.id}</span>
+                                        ${changed ? `<i class="fas fa-arrow-right text-slate-400 mx-1"></i> <span class="text-emerald-600">${newId}</span>` : `<span class="text-emerald-600 text-[10px]">(ត្រឹមត្រូវ)</span>`}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium">បោះបង់</button>
+                        <button type="button" onclick="executeRenumberStudentIds()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md">
+                            <i class="fas fa-check mr-1"></i> យល់ព្រមតម្រៀបលេខរៀងឡើងវិញ
+                        </button>
+                    </div>
+                </div>
+            `);
+        }
+
+        function executeRenumberStudentIds() {
+            const currentYear = db.settings.currentYear;
+            const yearStudents = (db.students || [])
+                .filter(s => s && s.year === currentYear)
+                .sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true, sensitivity: 'base' }));
+
+            const idMap = {};
+            yearStudents.forEach((stu, idx) => {
+                const newId = `STU${String(idx + 1).padStart(4, '0')}`;
+                if (stu.id !== newId) {
+                    idMap[stu.id] = newId;
+                    stu.id = newId;
+                }
+            });
+
+            // Sync updated IDs across attendance, grades, and library borrow records
+            if (Object.keys(idMap).length > 0) {
+                (db.attendance || []).forEach(a => {
+                    if (a && a.targetType === 'Student' && idMap[a.targetId]) {
+                        a.targetId = idMap[a.targetId];
+                    }
+                });
+                (db.grades || []).forEach(g => {
+                    if (g && idMap[g.studentId]) {
+                        g.studentId = idMap[g.studentId];
+                    }
+                });
+                (db.borrowRecords || []).forEach(b => {
+                    if (b && idMap[b.studentId]) {
+                        b.studentId = idMap[b.studentId];
+                    }
+                });
+            }
+
+            logAudit('តម្រៀបលេខរៀង ID សិស្សឡើងវិញ', `បានតម្រៀបអត្តលេខសិស្សចំនួន ${yearStudents.length} នាក់ឡើងវិញ`);
+            saveDB();
+            closeModal();
+            renderStudents(document.getElementById('mainContent'));
+            showToast(`✅ បានតម្រៀបលេខរៀង ID សិស្សទាំង ${yearStudents.length} នាក់ឡើងវិញដោយជោគជ័យ!`, 'success');
+        }
+
         function openStudentFormModal(studentId = null) {
             const s = studentId ? db.students.find(x => x.id === studentId) : null;
-            // Updated ID format to STU0001 (4 digits zero-padded)
-            const nextId = `STU${String(db.students.length + 1).padStart(4, '0')}`;
+            const activeLvl = s ? (s.level || getActiveLevel()) : getActiveLevel();
+            // Automatically calculate next sequential ID based on highest existing number (e.g. STU0001 -> STU0002)
+            const nextId = generateNextStudentId();
+            const missingId = findFirstMissingStudentId();
             currentCapturedPhoto = s?.photo || '';
-            const availableClasses = db.classes.filter(c => !c.year || c.year === db.settings.currentYear);
-            const uniqueGrades = [...new Set(['7', '8', '9', '10', '11', '12', ...availableClasses.map(c => c.grade)])];
+            const availableClasses = db.classes.filter(c => (!c.year || c.year === db.settings.currentYear) && isItemInActiveLevel(c));
+            const uniqueGrades = [...new Set([...getLevelGradesList(activeLvl), ...availableClasses.map(c => c.grade)])];
             
-            openModal(s ? 'កែប្រែព័ត៌មានសិស្ស' : 'បញ្ចូលព័ត៌មានសិស្សថ្មី', `
+            openModal(s ? 'កែប្រែព័ត៌មានសិស្ស' : `បញ្ចូលព័ត៌មានសិស្សថ្មី (${activeLvl === 'PRIMARY' ? 'បឋមសិក្សា' : 'មធ្យមសិក្សា'})`, `
                 <form id="studentForm" class="space-y-4">
                     <!-- Student Photo Capture (Front/Back Camera + File Upload) -->
                     <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-center gap-4">
@@ -2145,8 +2432,12 @@
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-xs font-semibold text-slate-600 mb-1">អត្តលេខសិស្ស (Student ID) *</label>
-                            <input type="text" id="stuId" required value="${s ? s.id : nextId}" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-mono font-bold text-primary-700 focus:ring-2 focus:ring-primary-500 outline-none" placeholder="ឧ. STU0001">
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">អត្តលេខសិស្ស (Student ID ស្វ័យប្រវត្តិ) *</label>
+                            <div class="flex gap-1.5">
+                                <input type="text" id="stuId" required value="${s ? s.id : nextId}" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-mono font-bold text-primary-700 focus:ring-2 focus:ring-primary-500 outline-none" placeholder="ឧ. STU0001">
+                                ${!s ? `<button type="button" onclick="document.getElementById('stuId').value=generateNextStudentId()" title="គណនាលេខរៀងបន្ទាប់" class="px-3 py-2 bg-primary-50 hover:bg-primary-100 text-primary-700 rounded-xl text-xs font-bold shrink-0"><i class="fas fa-sync-alt"></i></button>` : ''}
+                            </div>
+                            ${!s && missingId !== nextId ? `<button type="button" onclick="document.getElementById('stuId').value='${missingId}'" class="mt-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg flex items-center gap-1 transition"><i class="fas fa-magic"></i> ប្រើលេខដែលនៅទំនេរ៖ ${missingId}</button>` : ''}
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 mb-1">ឆ្នាំសិក្សា</label>
@@ -2212,8 +2503,15 @@
 
             document.getElementById('studentForm').onsubmit = (e) => {
                 e.preventDefault();
+                const enteredId = document.getElementById('stuId').value.trim();
+                const duplicateStu = db.students.find(x => x.id.toLowerCase() === enteredId.toLowerCase() && (!s || x.id !== s.id));
+                if (duplicateStu) {
+                    showToast(`⛔ អត្តលេខ "${enteredId}" មានរួចហើយ (${duplicateStu.nameKh})! សូមប្រើលេខរៀងបន្ទាប់។`, 'error');
+                    return;
+                }
                 const data = {
-                    id: document.getElementById('stuId').value,
+                    id: enteredId,
+                    level: activeLvl,
                     nameKh: document.getElementById('stuNameKh').value,
                     nameEn: document.getElementById('stuNameEn').value,
                     gender: document.getElementById('stuGender').value,
@@ -2507,10 +2805,29 @@
          * MODULE 3: TEACHER MANAGEMENT (គ្រប់គ្រងគ្រូបង្រៀន)
          * ============================================================================
          */
+        let teacherRoomFilter = 'ALL';
+
         function renderTeachers(container) {
+            const levelClasses = db.classes.filter(c => (!c.year || c.year === db.settings.currentYear) && isItemInActiveLevel(c));
+            const availableRooms = [...new Set([...levelClasses.map(c => c.room), ...db.teachers.map(t => t.homeroom)])].filter(r => r && r !== '-' && r !== 'គ្មាន');
+
+            const filteredTeachers = db.teachers.filter(t => {
+                if (teacherRoomFilter === 'ALL') return true;
+                return t.homeroom && t.homeroom.trim().toLowerCase() === teacherRoomFilter.trim().toLowerCase();
+            });
+
             container.innerHTML = `
                 <div class="bg-white p-4 rounded-2xl shadow-xs border border-slate-100 flex flex-wrap justify-between items-center gap-3">
-                    <h3 class="font-bold text-slate-800">បញ្ជីគ្រូបង្រៀនសរុប (${db.teachers.length} នាក់)</h3>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <h3 class="font-bold text-slate-800">បញ្ជីគ្រូបង្រៀនសរុប (${filteredTeachers.length} នាក់)</h3>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-semibold text-slate-600">🏫 ត្រងតាមថ្នាក់៖</span>
+                            <select onchange="teacherRoomFilter=this.value; renderTeachers(document.getElementById('mainContent'))" class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-primary-700 outline-none focus:ring-2 focus:ring-primary-500">
+                                <option value="ALL" ${teacherRoomFilter==='ALL'?'selected':''}>គ្រប់ថ្នាក់ទាំងអស់ (All Classes)</option>
+                                ${availableRooms.map(r => `<option value="${r}" ${teacherRoomFilter===r?'selected':''}>ថ្នាក់ ${r}</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
                     <div class="flex gap-2">
                         <button onclick="printAllTeachersQRCodes()" class="px-3.5 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-xl text-sm font-semibold transition flex items-center gap-1.5 shadow-xs">
                             <i class="fas fa-qrcode"></i> បោះពុម្ព QR គ្រូទាំងអស់
@@ -2522,7 +2839,8 @@
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    ${db.teachers.map(t => `
+                    ${filteredTeachers.length === 0 ? `<div class="col-span-full bg-white p-8 rounded-2xl text-center text-slate-400 border border-slate-100">រកមិនឃើញគ្រូបង្រៀនសម្រាប់ថ្នាក់នេះទេ</div>` :
+                    filteredTeachers.map(t => `
                         <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 flex flex-col justify-between space-y-4">
                             <div>
                                 <div class="flex items-start gap-3">
@@ -2862,17 +3180,23 @@
         function renderAttendance(container) {
             stopLiveQrScanner();
             const today = new Date().toISOString().split('T')[0];
-            const availableRooms = [...new Set([...db.classes.filter(c => !c.year || c.year === db.settings.currentYear).map(c => c.room), ...db.attendance.map(a => a.room), ...db.students.filter(s => s.year === db.settings.currentYear).map(s => s.room)])].filter(r => r && r !== '-');
+            const activeLvl = getActiveLevel();
+            const isPrimary = activeLvl === 'PRIMARY';
+            
+            // Filter rooms based on active level (Primary: grades 1-6 rooms, Secondary: grades 7-12 rooms)
+            const levelClasses = db.classes.filter(c => (!c.year || c.year === db.settings.currentYear) && isItemInActiveLevel(c));
+            const availableRooms = [...new Set([...levelClasses.map(c => c.room), ...db.attendance.map(a => a.room), ...db.students.filter(s => s.year === db.settings.currentYear && isItemInActiveLevel(s)).map(s => s.room)])].filter(r => r && r !== '-');
 
-            // Filter attendance records by room, type, selected date or month
             const filteredAttendance = db.attendance.filter(a => {
                 const matchRoom = attendanceFilterRoom === 'ALL' || a.room === attendanceFilterRoom;
                 const matchType = attendanceFilterType === 'ALL' || a.targetType === attendanceFilterType;
                 const matchDate = !attendanceSelectedDate || (a.date === attendanceSelectedDate);
-                return matchRoom && matchType && matchDate;
+                // Also filter by active level context
+                const targetObj = a.targetType === 'Student' ? db.students.find(s => s.id === a.targetId) : db.teachers.find(t => t.id === a.targetId);
+                const matchLevel = a.targetType === 'Teacher' ? true : (targetObj ? isItemInActiveLevel(targetObj) : true);
+                return matchRoom && matchType && matchDate && matchLevel;
             });
 
-            // Calculate daily & monthly summary stats for the bottom summary panel
             const currentMonthPrefix = attendanceSelectedMonth || new Date().toISOString().slice(0, 7);
             const monthRecords = db.attendance.filter(a => a.date && a.date.startsWith(currentMonthPrefix) && (attendanceFilterRoom === 'ALL' || a.room === attendanceFilterRoom));
 
@@ -2897,8 +3221,8 @@
                             <i class="fas fa-percentage"></i>
                         </div>
                         <div>
-                            <h4 class="font-bold text-base">ពិនិត្យអត្រាវត្តមានប្រចាំខែជាភាគរយ (%)</h4>
-                            <p class="text-xs text-emerald-100">គណនាភាគរយវត្តមានសិស្ស និងគ្រូបង្រៀនប្រចាំខែយ៉ាងលម្អិត</p>
+                            <h4 class="font-bold text-base">ពិនិត្យអត្រាវត្តមានប្រចាំខែ (${isPrimary ? '🏫 បឋមសិក្សា ទី១-៦' : '🎓 មធ្យមសិក្សា ទី៧-១២'})</h4>
+                            <p class="text-xs text-emerald-100">គណនាភាគរយវត្តមានសិស្សបឋម និងគ្រូបង្រៀនប្រចាំខែយ៉ាងលម្អិត</p>
                         </div>
                     </div>
                     <button onclick="navigateTo('reports'); setReportTimeframe('ATTENDANCE_MONTH');" class="px-4 py-2 bg-white text-emerald-700 hover:bg-emerald-50 rounded-xl text-xs font-bold shadow transition shrink-0 flex items-center gap-1.5">
@@ -2907,7 +3231,7 @@
                 </div>
 
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <!-- NEW REDESIGNED QR SCANNER CARD MATCHING SCREENSHOT -->
+                    <!-- QR SCANNER CARD WITH DEDICATED PRIMARY/SECONDARY MODE -->
                     <div class="bg-white p-6 rounded-3xl shadow-md border border-slate-100 space-y-5">
                         <!-- Card Header -->
                         <div class="flex items-center justify-between">
@@ -2916,8 +3240,8 @@
                                     <i class="fas fa-camera"></i>
                                 </div>
                                 <div>
-                                    <h3 class="font-bold text-slate-800 text-base">កាមេរ៉ាស្កេន QR Code វត្តមាន</h3>
-                                    <p class="text-[11px] text-slate-500">គាំទ្រការប្តូរថ្នាក់ និងចាក់សោឧបករណ៍តាមថ្នាក់</p>
+                                    <h3 class="font-bold text-slate-800 text-base">ស្កេន QR វត្តមាន (${isPrimary ? 'បឋមសិក្សា' : 'មធ្យមសិក្សា'})</h3>
+                                    <p class="text-[11px] text-slate-500">បែងចែកដាច់ពីគ្នា (សិស្សបឋម vs គ្រូបង្រៀន)</p>
                                 </div>
                             </div>
                             <button type="button" onclick="toggleLiveQrScanner()" id="btnToggleQrCam" class="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs">
@@ -2925,12 +3249,12 @@
                             </button>
                         </div>
 
-                        <!-- NEW: Class Selector & Multi-Device Lock Box -->
+                        <!-- Class Selector & Multi-Device Lock Box -->
                         <div class="p-3.5 rounded-2xl border ${isScannerClassLocked ? 'bg-amber-50/90 border-amber-300' : 'bg-primary-50/70 border-primary-200'} space-y-2.5">
                             <div class="flex items-center justify-between gap-2">
                                 <label class="text-xs font-bold ${isScannerClassLocked ? 'text-amber-900' : 'text-primary-900'} flex items-center gap-1.5">
                                     <i class="fas ${isScannerClassLocked ? 'fa-lock text-amber-600' : 'fa-door-open text-primary-600'}"></i>
-                                    <span>${isScannerClassLocked ? 'ឧបករណ៍ចាក់សោប្រចាំថ្នាក់ (Device Lock)' : 'ជ្រើសរើសថ្នាក់មុនពេលស្កេន'}</span>
+                                    <span>${isScannerClassLocked ? 'ឧបករណ៍ចាក់សោប្រចាំថ្នាក់ (Device Lock)' : `ជ្រើសរើសថ្នាក់${isPrimary ? 'បឋម (ទី១-៦)' : 'មធ្យម'}`}</span>
                                 </label>
                                 <button type="button" onclick="toggleScannerClassLock()" class="px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-2xs ${isScannerClassLocked ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-300'}">
                                     <i class="fas ${isScannerClassLocked ? 'fa-unlock' : 'fa-lock'}"></i>
@@ -2938,23 +3262,23 @@
                                 </button>
                             </div>
                             <select onchange="setScannerTargetClass(this.value)" ${isScannerClassLocked ? 'disabled' : ''} class="w-full px-3.5 py-2.5 bg-white border ${isScannerClassLocked ? 'border-amber-400 text-amber-900 bg-amber-100/50 cursor-not-allowed' : 'border-primary-300 text-primary-900'} rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-primary-500">
-                                <option value="AUTO" ${scannerSelectedClass==='AUTO'?'selected':''}>🔄 ស្វ័យប្រវត្តិតាមកាតសិស្ស (គ្រប់ថ្នាក់ទាំងអស់)</option>
+                                <option value="AUTO" ${scannerSelectedClass==='AUTO'?'selected':''}>🔄 ស្វ័យប្រវត្តិតាមកាតសិស្ស (${isPrimary ? 'ថ្នាក់ទី១-៦' : 'គ្រប់ថ្នាក់'})</option>
                                 ${availableRooms.map(r => `<option value="${r}" ${scannerSelectedClass===r?'selected':''}>🏫 ថ្នាក់ ${r}</option>`).join('')}
                             </select>
                             <p class="text-[10px] ${isScannerClassLocked ? 'text-amber-800 font-medium' : 'text-slate-600'}">
                                 ${isScannerClassLocked 
-                                    ? `📌 ឧបករណ៍នេះត្រូវបានចាក់សោសម្រាប់តែ <strong>ថ្នាក់ ${scannerSelectedClass}</strong> ប៉ុណ្ណោះ (ការពារការស្កេនច្រឡំថ្នាក់ផ្សេង)។` 
-                                    : '💡 ជ្រើសរើសថ្នាក់ជាក់លាក់ (ឧ. ៧ក, ៨ក, ៩ក) ដើម្បីផ្គូផ្គងកាលវិភាគ និងឈ្មោះគ្រូតាមថ្នាក់នោះ។'}
+                                    ? `📌 ឧបករណ៍នេះត្រូវបានចាក់សោសម្រាប់សិស្ស <strong>ថ្នាក់ ${scannerSelectedClass}</strong> ប៉ុណ្ណោះ។` 
+                                    : `💡 ជ្រើសរើសថ្នាក់ ${isPrimary ? 'បឋមសិក្សា' : 'មធ្យមសិក្សា'} ជាក់លាក់ ដើម្បីផ្គូផ្គងកាលវិភាគ។`}
                             </p>
                         </div>
 
-                        <!-- Dropdowns Row: Scan Type & Check-in/Out -->
+                        <!-- Dropdowns Row: Scan Type & Check-in/Out with strict validation -->
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-xs font-semibold text-slate-600 mb-1">ប្រភេទស្កេន</label>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">ប្រភេទស្កេន (ដាច់ដោយឡែក សិស្ស vs គ្រូ) *</label>
                                 <select id="attType" onchange="updateAttTargetList()" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500">
-                                    <option value="Student">👨‍🎓 ស្កេនកាតមានសិស្ស</option>
-                                    <option value="Teacher">👩‍🏫 ស្កេនកាតគ្រូបង្រៀន</option>
+                                    <option value="Student">👨‍🎓 ស្កេនវត្តមានសិស្ស (Student Only)</option>
+                                    <option value="Teacher">👩‍🏫 ស្កេនវត្តមានគ្រូបង្រៀន (Teacher Only - តម្រូវឱ្យជ្រើសរើស)</option>
                                 </select>
                             </div>
                             <div>
@@ -2976,7 +3300,7 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-xs font-semibold text-slate-600 mb-1">⏱️ ល្បឿនស្កេនស្វ័យប្រវត្តិ (1 - 5 វិនាទី)</label>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">⏱️ ល្បឿនស្កេន (1 - 5 វិនាទី)</label>
                                 <select onchange="scanDisplayDelaySeconds=Number(this.value); updateScanSpeedStatusText();" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-emerald-700 outline-none focus:ring-2 focus:ring-emerald-500">
                                     <option value="1" ${scanDisplayDelaySeconds===1?'selected':''}>⚡ ១ វិនាទី (1s - លឿន)</option>
                                     <option value="2" ${scanDisplayDelaySeconds===2?'selected':''}>🟢 ២ វិនាទី (2s - មធ្យម)</option>
@@ -2991,7 +3315,6 @@
                         <div class="relative bg-slate-950 rounded-2xl overflow-hidden shadow-inner flex flex-col items-center justify-center min-h-[260px]">
                             <div id="qrReaderViewport" class="w-full h-full object-cover"></div>
                             
-                            <!-- Placeholder when camera is closed -->
                             <div id="qrCameraClosedPlaceholder" class="hidden absolute inset-0 flex flex-col items-center justify-center text-slate-400 p-4 text-center bg-slate-900/95 z-10">
                                 <i class="fas fa-video-slash text-3xl mb-2 opacity-50"></i>
                                 <p class="text-xs">កាមេរ៉ាមិនទាន់បានបើកដំណើរការ</p>
@@ -3008,15 +3331,12 @@
                         <form id="quickAttForm" class="space-y-3">
                             <div class="flex gap-2">
                                 <div class="relative flex-1">
-                                    <input type="text" id="attQrInput" placeholder="បញ្ចូលអត្តលេខសិស្ស ូ បញ្ចូលដោយដៃ..." class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-mono outline-none focus:ring-2 focus:ring-emerald-500">
+                                    <input type="text" id="attQrInput" placeholder="បញ្ចូលអត្តលេខសិស្ស ឬគ្រូដោយដៃ..." class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-mono outline-none focus:ring-2 focus:ring-emerald-500">
                                 </div>
                                 <button type="submit" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold shadow-md shadow-emerald-600/20 transition shrink-0 flex items-center gap-1.5">
                                     ស្កេនបញ្ជាក់
                                 </button>
                             </div>
-                            <select id="attTargetSelect" onchange="document.getElementById('attQrInput').value=this.value" class="hidden">
-                                ${db.students.map(s => `<option value="${s.id}">${s.id} - ${s.nameKh} (${s.room})</option>`).join('')}
-                            </select>
                         </form>
 
                         <!-- Radio Buttons for Attendance Status -->
@@ -3058,7 +3378,7 @@
 
                             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                                 <div class="flex flex-wrap items-center gap-2">
-                                    <h3 class="font-bold text-slate-800">បញ្ជីកត់ត្រាវត្តមាន (សរុប ${filteredAttendance.length})</h3>
+                                    <h3 class="font-bold text-slate-800">បញ្ជីកត់ត្រាវត្តមាន (${isPrimary ? 'បឋមសិក្សា' : 'មធ្យមសិក្សា'} - សរុប ${filteredAttendance.length})</h3>
                                     
                                     <!-- Independent Room Filter Dropdown -->
                                     <select onchange="attendanceFilterRoom=this.value; renderAttendance(document.getElementById('mainContent'))" class="px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-primary-500">
@@ -3068,7 +3388,7 @@
 
                                     <!-- Independent Target Type Filter Dropdown -->
                                     <select onchange="attendanceFilterType=this.value; renderAttendance(document.getElementById('mainContent'))" class="px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-primary-500">
-                                        <option value="ALL" ${attendanceFilterType==='ALL'?'selected':''}>គ្រប់ប្រភេទទាំងអស់ (All Types)</option>
+                                        <option value="ALL" ${attendanceFilterType==='ALL'?'selected':''}>គ្រប់ប្រភេទទាំងអស់</option>
                                         <option value="Student" ${attendanceFilterType==='Student'?'selected':''}>សិស្ស (Students)</option>
                                         <option value="Teacher" ${attendanceFilterType==='Teacher'?'selected':''}>គ្រូបង្រៀន (Teachers)</option>
                                     </select>
@@ -3118,54 +3438,53 @@
                             </div>
                         </div>
 
-                        <!-- NEW: INDIVIDUAL ATTENDANCE SUMMARY TABLE (ចំនួនដង និង ភាគរយសរុបម្នាក់ៗ) -->
+                        <!-- INDIVIDUAL ATTENDANCE SUMMARY TABLE -->
                         <div class="border-t border-slate-200 pt-5 space-y-4">
                             <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                                 <div>
                                     <h4 class="font-bold text-slate-800 text-sm flex items-center gap-2">
-                                        <i class="fas fa-user-check text-primary-600"></i> តារាងបូកសរុបវត្តមានម្នាក់ៗ (ចំនួនដង និងភាគរយសរុប)
+                                        <i class="fas fa-user-check text-primary-600"></i> តារាងបូកសរុបវត្តមានម្នាក់ៗ (${isPrimary ? 'បឋមសិក្សា' : 'មធ្យមសិក្សា'})
                                     </h4>
-                                    <p class="text-xs text-slate-500 mt-0.5">ត្រងតាមថ្នាក់រៀន ប្រភេទ (សិស្ស/គ្រូ) និងកាលបរិច្ឆេទ</p>
+                                    <p class="text-xs text-slate-500 mt-0.5">ចំនួនដង និងភាគរយសរុបម្នាក់ៗ</p>
                                 </div>
                                 <div class="flex flex-wrap items-center gap-2">
+                                    <!-- Date & Month Filter for Individual Summary -->
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="text-xs font-semibold text-slate-700">📅 ថ្ងៃ៖</span>
+                                        <input type="date" value="${attendanceSelectedDate}" onchange="attendanceSelectedDate=this.value; renderAttendance(document.getElementById('mainContent'))" class="px-2.5 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800">
+                                    </div>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="text-xs font-semibold text-slate-700">📊 ខែ៖</span>
+                                        <input type="month" value="${attendanceSelectedMonth}" onchange="attendanceSelectedMonth=this.value; renderAttendance(document.getElementById('mainContent'))" class="px-2.5 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800">
+                                    </div>
+                                    <!-- Independent Filters for Individual Summary Table -->
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="text-xs font-semibold text-slate-700">🏫 ថ្នាក់៖</span>
+                                        <select onchange="attendanceFilterRoom=this.value; renderAttendance(document.getElementById('mainContent'))" class="px-2.5 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-medium outline-none">
+                                            <option value="ALL" ${attendanceFilterRoom==='ALL'?'selected':''}>គ្រប់ថ្នាក់ទាំងអស់</option>
+                                            ${availableRooms.map(r => `<option value="${r}" ${attendanceFilterRoom===r?'selected':''}>ថ្នាក់ ${r}</option>`).join('')}
+                                        </select>
+                                    </div>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="text-xs font-semibold text-slate-700">👥 ប្រភេទ៖</span>
+                                        <select onchange="attendanceFilterType=this.value; renderAttendance(document.getElementById('mainContent'))" class="px-2.5 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-medium outline-none">
+                                            <option value="ALL" ${attendanceFilterType==='ALL'?'selected':''}>សិស្ស និងគ្រូ</option>
+                                            <option value="Student" ${attendanceFilterType==='Student'?'selected':''}>សិស្ស (Students)</option>
+                                            <option value="Teacher" ${attendanceFilterType==='Teacher'?'selected':''}>គ្រូបង្រៀន (Teachers)</option>
+                                        </select>
+                                    </div>
+                                    <button onclick="printIndividualAttendanceSummary()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold flex items-center gap-1 shadow-xs" title="បោះពុម្ពតារាងបូកសរុបម្នាក់ៗ">
+                                        <i class="fas fa-print"></i> បោះពុម្ព
+                                    </button>
                                     <button onclick="exportIndividualAttendanceSummaryCSV()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1 shadow-xs">
-                                        <i class="fas fa-file-excel"></i> ទាញយក Excel
+                                        <i class="fas fa-file-excel"></i> Excel
                                     </button>
                                     <button onclick="clearAllIndividualAttendanceRecords()" class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-semibold flex items-center gap-1 shadow-xs transition">
-                                        <i class="fas fa-trash-alt"></i> លុបទិន្នន័យទាំងអស់
+                                        <i class="fas fa-trash-alt"></i> លុបទាំងអស់
                                     </button>
                                 </div>
                             </div>
-
-                            <!-- Dedicated Filters Bar for Summary Table -->
-                            <div class="flex flex-wrap items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 text-xs font-medium">
-                                <div class="flex items-center gap-1.5">
-                                    <span class="text-slate-600">🏫 ថ្នាក់៖</span>
-                                    <select onchange="attendanceFilterRoom=this.value; renderAttendance(document.getElementById('mainContent'))" class="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold outline-none">
-                                        <option value="ALL" ${attendanceFilterRoom==='ALL'?'selected':''}>គ្រប់ថ្នាក់ទាំងអស់</option>
-                                        ${availableRooms.map(r => `<option value="${r}" ${attendanceFilterRoom===r?'selected':''}>ថ្នាក់ ${r}</option>`).join('')}
-                                    </select>
-                                </div>
-                                <div class="flex items-center gap-1.5">
-                                    <span class="text-slate-600">👥 ប្រភេទ៖</span>
-                                    <select onchange="attendanceFilterType=this.value; renderAttendance(document.getElementById('mainContent'))" class="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold outline-none">
-                                        <option value="ALL" ${attendanceFilterType==='ALL'?'selected':''}>សិស្ស & គ្រូ</option>
-                                        <option value="Student" ${attendanceFilterType==='Student'?'selected':''}>សិស្ស (Students)</option>
-                                        <option value="Teacher" ${attendanceFilterType==='Teacher'?'selected':''}>គ្រូបង្រៀន (Teachers)</option>
-                                    </select>
-                                </div>
-                                <div class="flex items-center gap-1.5">
-                                    <span class="text-slate-600">📅 ថ្ងៃទី៖</span>
-                                    <input type="date" value="${attendanceSelectedDate}" onchange="attendanceSelectedDate=this.value; renderAttendance(document.getElementById('mainContent'))" class="px-2 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold">
-                                </div>
-                                <div class="flex items-center gap-1.5">
-                                    <span class="text-slate-600">📊 ខែ៖</span>
-                                    <input type="month" value="${attendanceSelectedMonth}" onchange="attendanceSelectedMonth=this.value; renderAttendance(document.getElementById('mainContent'))" class="px-2 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold">
-                                </div>
-                                <button onclick="attendanceSelectedDate=''; renderAttendance(document.getElementById('mainContent'))" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700">បង្ហាញទាំងអស់</button>
-                            </div>
-
-                            <div class="overflow-x-auto">
+                            <div id="individualSummaryPrintableArea" class="overflow-x-auto">
                                 <table class="w-full text-left text-xs">
                                     <thead class="bg-slate-50 text-slate-600 border-b">
                                         <tr>
@@ -3188,7 +3507,7 @@
                                                     summaryMap[a.targetId] = {
                                                         id: a.targetId,
                                                         name: a.targetName,
-                                                        type: a.targetType,
+                                                        type: a.targetType === 'Student' ? 'សិស្ស' : 'គ្រូ',
                                                         room: a.room || '-',
                                                         present: 0,
                                                         late: 0,
@@ -3216,7 +3535,7 @@
                                                 return `
                                                     <tr class="hover:bg-slate-50/80 transition">
                                                         <td class="py-2.5 px-3 font-mono font-bold text-primary-600">${item.id}</td>
-                                                        <td class="py-2.5 px-3 font-bold text-slate-800">${item.name} <span class="text-[10px] font-normal text-slate-400">(${item.type === 'Student' ? 'សិស្ស' : 'គ្រូ'})</span></td>
+                                                        <td class="py-2.5 px-3 font-bold text-slate-800">${item.name} <span class="text-[10px] font-normal text-slate-400">(${item.type})</span></td>
                                                         <td class="py-2.5 px-3 font-semibold text-slate-600">${item.room}</td>
                                                         <td class="py-2.5 px-3 text-center font-bold text-emerald-600">${item.present}</td>
                                                         <td class="py-2.5 px-3 text-center font-bold text-amber-600">${item.late}</td>
@@ -3234,73 +3553,6 @@
                                 </table>
                             </div>
                         </div>
-
-                        <!-- NEW: ATTENDANCE SUMMARY PANEL (DAILY & MONTHLY) -->
-                        <div class="border-t border-slate-200 pt-5 space-y-4">
-                            <h4 class="font-bold text-slate-800 text-sm flex items-center gap-2">
-                                <i class="fas fa-chart-pie text-emerald-600"></i> របាយការណ៍បូកសរុបវត្តមាន (ប្រចាំថ្ងៃ និងប្រចាំខែ)
-                            </h4>
-                            
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <!-- Daily Summary Box -->
-                                <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-                                    <div class="flex justify-between items-center text-xs font-bold text-slate-700 border-b pb-2">
-                                        <span>📅 ថ្ងៃជ្រើសរើស (${attendanceSelectedDate || 'ថ្ងៃនេះ'})</span>
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-primary-600">សរុប៖ ${todayRecords.length}</span>
-                                            ${todayRecords.length > 0 ? `<button onclick="clearDailyAttendanceRecords()" title="លុបទិន្នន័យថ្ងៃនេះ" class="px-2 py-0.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition"><i class="fas fa-trash-alt"></i> លុប</button>` : ''}
-                                        </div>
-                                    </div>
-                                    <div class="grid grid-cols-2 gap-2 text-xs">
-                                        <div class="bg-emerald-50 text-emerald-800 p-2.5 rounded-xl border border-emerald-100">
-                                            <p class="text-[11px] font-semibold">✅ មានវត្តមាន៖</p>
-                                            <p class="text-base font-bold mt-0.5">${todayPresent} នាក់</p>
-                                        </div>
-                                        <div class="bg-amber-50 text-amber-800 p-2.5 rounded-xl border border-amber-100">
-                                            <p class="text-[11px] font-semibold">⏰ មកយឺត៖</p>
-                                            <p class="text-base font-bold mt-0.5">${todayLate} នាក់</p>
-                                        </div>
-                                        <div class="bg-blue-50 text-blue-800 p-2.5 rounded-xl border border-blue-100">
-                                            <p class="text-[11px] font-semibold">📝 មានច្បាប់៖</p>
-                                            <p class="text-base font-bold mt-0.5">${todayExcused} នាក់</p>
-                                        </div>
-                                        <div class="bg-red-50 text-red-800 p-2.5 rounded-xl border border-red-100">
-                                            <p class="text-[11px] font-semibold">❌ អវត្តមាន៖</p>
-                                            <p class="text-base font-bold mt-0.5">${todayAbsent} នាក់</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Monthly Summary Box -->
-                                <div class="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-200 space-y-2">
-                                    <div class="flex justify-between items-center text-xs font-bold text-emerald-900 border-b border-emerald-200 pb-2">
-                                        <span>📊 ប្រចាំខែ (${currentMonthPrefix})</span>
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-emerald-700 font-bold">អត្រា: ${monthRatePct}%</span>
-                                            ${monthRecords.length > 0 ? `<button onclick="clearAttendancePanelMonthlyRecords()" title="លុបទិន្នន័យខែនេះ" class="px-2 py-0.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition"><i class="fas fa-trash-alt"></i> លុប</button>` : ''}
-                                        </div>
-                                    </div>
-                                    <div class="grid grid-cols-2 gap-2 text-xs">
-                                        <div class="bg-white text-emerald-800 p-2.5 rounded-xl border border-emerald-100 shadow-xs">
-                                            <p class="text-[11px] font-semibold">✅ មានវត្តមានសរុប៖</p>
-                                            <p class="text-base font-bold mt-0.5">${monthPresent} ដង</p>
-                                        </div>
-                                        <div class="bg-white text-amber-800 p-2.5 rounded-xl border border-amber-100 shadow-xs">
-                                            <p class="text-[11px] font-semibold">⏰ មកយឺតសរុប៖</p>
-                                            <p class="text-base font-bold mt-0.5">${monthLate} ដង</p>
-                                        </div>
-                                        <div class="bg-white text-blue-800 p-2.5 rounded-xl border border-blue-100 shadow-xs">
-                                            <p class="text-[11px] font-semibold">📝 មានច្បាប់សរុប៖</p>
-                                            <p class="text-base font-bold mt-0.5">${monthExcused} ដង</p>
-                                        </div>
-                                        <div class="bg-white text-red-800 p-2.5 rounded-xl border border-red-100 shadow-xs">
-                                            <p class="text-[11px] font-semibold">❌ អវត្តមានសរុប៖</p>
-                                            <p class="text-base font-bold mt-0.5">${monthAbsent} ដង</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
             `;
@@ -3310,7 +3562,6 @@
                 submitAttendanceRecord();
             };
 
-            // Auto-start QR Scanner Camera immediately when opening Attendance tab
             setTimeout(() => {
                 updateLiveScheduleBanner();
                 if (currentTab === 'attendance' && !html5QrScanner) {
@@ -3388,16 +3639,25 @@
                 return;
             }
 
-            let target = db.students.find(s => s.id.toLowerCase() === rawCode.toLowerCase());
-            let type = document.getElementById('attType')?.value || 'Student';
+            const selectedScanType = document.getElementById('attType')?.value || 'Student';
 
-            if (!target) {
+            let target = null;
+            let type = selectedScanType;
+
+            if (selectedScanType === 'Student') {
+                target = db.students.find(s => s.id.toLowerCase() === rawCode.toLowerCase());
+                if (!target) {
+                    showToast(`⛔ កាតដែលបានស្កេន "${rawCode}" មិនមែនជាកាតសិស្សទេ! សូមពិនិត្យប្រភេទស្កេន។`, 'error');
+                    return;
+                }
+            } else if (selectedScanType === 'Teacher') {
                 target = db.teachers.find(t => t.id.toLowerCase() === rawCode.toLowerCase());
-                type = 'Teacher';
-            }
-
-            if (!target) {
-                showToast(`រកមិនឃើញអត្តលេខ "${rawCode}" ក្នុងប្រព័ន្ធទេ!`, 'error');
+                if (!target) {
+                    showToast(`⛔ កាតដែលបានស្កេន "${rawCode}" មិនមែនជាកាតគ្រូបង្រៀនទេ! ប្រសិនបើអ្នកចង់ស្កេនគ្រូ សូមជ្រើសរើសប្រភេទស្កេនជា "គ្រូបង្រៀន" ឱ្យបានត្រឹមត្រូវ។`, 'error');
+                    return;
+                }
+            } else {
+                showToast('⚠️ សូមជ្រើសរើសប្រភេទស្កេន (សិស្ស ឬ គ្រូ) ឱ្យបានច្បាស់លាស់ជាមុនសិន!', 'warning');
                 return;
             }
 
@@ -3412,7 +3672,7 @@
             }
 
             const today = attendanceSelectedDate || new Date().toISOString().split('T')[0];
-            const targetRoom = (scannerSelectedClass !== 'AUTO') ? scannerSelectedClass.trim() : studentNativeRoom;
+            const targetRoom = (target.room || target.homeroom || '-').trim();
             const attStatus = attendanceRadioStatus || 'មានវត្តមាន';
             
             // Automatically detect the exact active period based on real-time clock & selected class
@@ -3744,6 +4004,25 @@
             exportToCSV(`Individual_Attendance_Summary_${attendanceSelectedDate || 'All'}.csv`, rows);
         }
 
+        function printIndividualAttendanceSummary() {
+            const printable = document.getElementById('individualSummaryPrintableArea');
+            if (!printable) {
+                showToast('រកមិនឃើញតារាងសម្រាប់បោះពុម្ពទេ!', 'error');
+                return;
+            }
+            const dateLabel = attendanceSelectedDate ? `ប្រចាំថ្ងៃទី ${attendanceSelectedDate}` : (attendanceSelectedMonth ? `ប្រចាំខែ ${attendanceSelectedMonth}` : 'គ្រប់កាលបរិច្ឆេទទាំងអស់');
+            const roomLabel = attendanceFilterRoom === 'ALL' ? 'គ្រប់ថ្នាក់ទាំងអស់' : `ថ្នាក់ ${attendanceFilterRoom}`;
+            const activeLevelTitle = getActiveLevel() === 'PRIMARY' ? 'បឋមសិក្សា (ថ្នាក់ទី១-៦)' : 'មធ្យមសិក្សា (ថ្នាក់ទី៧-១២)';
+            printHTML(`
+                <div class="text-center mb-4">
+                    <h2 class="text-xl font-bold">${db.settings.schoolNameKh}</h2>
+                    <h3 class="text-sm font-bold text-primary-700 mt-1">តារាងបូកសរុបវត្តមានម្នាក់ៗ (${activeLevelTitle})</h3>
+                    <p class="text-xs text-slate-600 mt-0.5">${dateLabel} | ${roomLabel}</p>
+                </div>
+                ${printable.outerHTML}
+            `);
+        }
+
         function deleteAttendance(id) {
             const rec = (db.attendance || []).find(x => x.id === id);
             if (!rec) return;
@@ -3837,20 +4116,46 @@
         }
 
         function renderGrades(container) {
-            // Get all available rooms in current academic year
-            const availableRooms = [...new Set([...db.classes.filter(c => !c.year || c.year === db.settings.currentYear).map(c => c.room), ...db.students.filter(s => s.year === db.settings.currentYear).map(s => s.room)])];
+            // Get all available rooms in current academic year & active education level
+            const levelClasses = db.classes.filter(c => (!c.year || c.year === db.settings.currentYear) && isItemInActiveLevel(c));
+            const levelStudents = db.students.filter(s => s.year === db.settings.currentYear && isItemInActiveLevel(s));
+            const availableRooms = [...new Set([...levelClasses.map(c => c.room), ...levelStudents.map(s => s.room)])];
 
-            // Filter grades by current academic year, selected room, and optional date/month
+            // Filter grades by current academic year, active education level, selected room, and optional date/month
             const filteredGrades = db.grades.filter(g => {
-                const matchYear = g.year === db.settings.currentYear;
+                const matchYear = g.year === db.settings.currentYear && isItemInActiveLevel(g);
                 const matchRoom = gradeFilterRoom === 'ALL' || g.room === gradeFilterRoom;
                 const matchDate = !gradeFilterDate || (g.date && g.date.startsWith(gradeFilterDate)) || (g.period && g.period.includes(gradeFilterDate));
                 return matchYear && matchRoom && matchDate;
             });
 
-            // Compute rankings
+            // Dynamic subjects from db.subjects
+            const subjectsList = db.subjects || [];
+
+            // Compute rankings based on total score of all subjects
             const enriched = filteredGrades
-                .map(g => ({ ...g, ...calculateGradeStats(g) }))
+                .map(g => {
+                    let total = 0;
+                    let maxTotalPossible = 0;
+                    subjectsList.forEach(sub => {
+                        total += Number(g.scores?.[sub.code] ?? g[sub.code.toLowerCase()] ?? 0);
+                        maxTotalPossible += Number(sub.maxScore || 100);
+                    });
+                    // Fallback calculation if legacy properties were used
+                    if (total === 0 && (g.math || g.khmer)) {
+                        total = Number(g.math || 0) + Number(g.khmer || 0) + Number(g.physics || 0) + Number(g.chemistry || 0) + Number(g.english || 0);
+                        maxTotalPossible = 425;
+                    }
+                    const avg = maxTotalPossible > 0 ? (total / maxTotalPossible) * 50 : 0; // Cambodian MoEYS 50-point scale
+                    let mention = 'F (ធ្លាក់)';
+                    let passed = false;
+                    if (avg >= 45) { mention = 'A (ល្អប្រសើរ)'; passed = true; }
+                    else if (avg >= 40) { mention = 'B (ល្អណាស់)'; passed = true; }
+                    else if (avg >= 35) { mention = 'C (ល្អ)'; passed = true; }
+                    else if (avg >= 30) { mention = 'D (ល្អបង្គួរ)'; passed = true; }
+                    else if (avg >= 25) { mention = 'E (មធ្យម)'; passed = true; }
+                    return { ...g, total, avg: avg.toFixed(2), mention, passed };
+                })
                 .sort((a, b) => b.total - a.total);
 
             container.innerHTML = `
@@ -3892,11 +4197,7 @@
                                     <th class="py-3 px-3 text-center">ចំណាត់ថ្នាក់</th>
                                     <th class="py-3 px-3">ឈ្មោះសិស្ស</th>
                                     <th class="py-3 px-3">ថ្នាក់ / ប្រឡង</th>
-                                    <th class="py-3 px-2 text-center">គណិត (125)</th>
-                                    <th class="py-3 px-2 text-center">ខ្មែរ (100)</th>
-                                    <th class="py-3 px-2 text-center">រូប (75)</th>
-                                    <th class="py-3 px-2 text-center">គីមី (75)</th>
-                                    <th class="py-3 px-2 text-center">អង់គ្លេស (50)</th>
+                                    ${subjectsList.map(sub => `<th class="py-3 px-2 text-center">${sub.nameKh} (${sub.maxScore || 100})</th>`).join('')}
                                     <th class="py-3 px-3 text-center">សរុប</th>
                                     <th class="py-3 px-3 text-center">មធ្យមភាគ</th>
                                     <th class="py-3 px-3">និទ្ទេស / លទ្ធផល</th>
@@ -3904,17 +4205,16 @@
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
-                                ${enriched.length === 0 ? `<tr><td colspan="12" class="py-8 text-center text-slate-400">គ្មានទិន្នន័យពិន្ទុសម្រាប់ថ្នាក់នេះទេ</td></tr>` :
+                                ${enriched.length === 0 ? `<tr><td colspan="${6 + subjectsList.length}" class="py-8 text-center text-slate-400">គ្មានទិន្នន័យពិន្ទុសម្រាប់ថ្នាក់នេះទេ</td></tr>` :
                                 enriched.map((g, index) => `
                                     <tr class="hover:bg-slate-50/80">
                                         <td class="py-3 px-3 text-center font-bold text-primary-700">#${index + 1}</td>
                                         <td class="py-3 px-3 font-bold text-slate-800">${g.studentName}</td>
                                         <td class="py-3 px-3 text-xs">ថ្នាក់ ${g.room} - ${g.period}</td>
-                                        <td class="py-3 px-2 text-center">${g.math}</td>
-                                        <td class="py-3 px-2 text-center">${g.khmer}</td>
-                                        <td class="py-3 px-2 text-center">${g.physics}</td>
-                                        <td class="py-3 px-2 text-center">${g.chemistry}</td>
-                                        <td class="py-3 px-2 text-center">${g.english}</td>
+                                        ${subjectsList.map(sub => {
+                                            const val = g.scores?.[sub.code] ?? g[sub.code.toLowerCase()] ?? 0;
+                                            return `<td class="py-3 px-2 text-center">${val}</td>`;
+                                        }).join('')}
                                         <td class="py-3 px-3 text-center font-bold">${g.total}</td>
                                         <td class="py-3 px-3 text-center font-bold text-blue-600">${g.avg}</td>
                                         <td class="py-3 px-3">
@@ -3943,23 +4243,40 @@
                 const matchDate = !gradeFilterDate || (g.date && g.date.startsWith(gradeFilterDate)) || (g.period && g.period.includes(gradeFilterDate));
                 return matchYear && matchRoom && matchDate;
             });
+            const subjectsList = db.subjects || [];
             const enriched = filteredGrades
-                .map(g => ({ ...g, ...calculateGradeStats(g) }))
+                .map(g => {
+                    let total = 0;
+                    let maxTotalPossible = 0;
+                    subjectsList.forEach(sub => {
+                        total += Number(g.scores?.[sub.code] ?? g[sub.code.toLowerCase()] ?? 0);
+                        maxTotalPossible += Number(sub.maxScore || 100);
+                    });
+                    if (total === 0 && (g.math || g.khmer)) {
+                        total = Number(g.math || 0) + Number(g.khmer || 0) + Number(g.physics || 0) + Number(g.chemistry || 0) + Number(g.english || 0);
+                        maxTotalPossible = 425;
+                    }
+                    const avg = maxTotalPossible > 0 ? (total / maxTotalPossible) * 50 : 0;
+                    let mention = 'F (ធ្លាក់)';
+                    let passed = false;
+                    if (avg >= 45) { mention = 'A (ល្អប្រសើរ)'; passed = true; }
+                    else if (avg >= 40) { mention = 'B (ល្អណាស់)'; passed = true; }
+                    else if (avg >= 35) { mention = 'C (ល្អ)'; passed = true; }
+                    else if (avg >= 30) { mention = 'D (ល្អបង្គួរ)'; passed = true; }
+                    else if (avg >= 25) { mention = 'E (មធ្យម)'; passed = true; }
+                    return { ...g, total, avg: avg.toFixed(2), mention, passed };
+                })
                 .sort((a, b) => b.total - a.total);
 
             const rows = [
                 [`=== តារាងពិន្ទុ និងចំណាត់ថ្នាក់សិស្ស (ឆ្នាំសិក្សា ${db.settings.currentYear}) ===`],
-                ['ចំណាត់ថ្នាក់', 'ឈ្មោះសិស្ស', 'ថ្នាក់', 'ប្រភេទប្រឡង / ខែ', 'គណិត (125)', 'ខ្មែរ (100)', 'រូប (75)', 'គីមី (75)', 'អង់គ្លេស (50)', 'ពិន្ទុសរុប', 'មធ្យមភាគ', 'និទ្ទេស / លទ្ធផល'],
+                ['ចំណាត់ថ្នាក់', 'ឈ្មោះសិស្ស', 'ថ្នាក់', 'ប្រភេទប្រឡង / ខែ', ...subjectsList.map(s => `${s.nameKh} (${s.maxScore || 100})`), 'ពិន្ទុសរុប', 'មធ្យមភាគ', 'និទ្ទេស / លទ្ធផល'],
                 ...enriched.map((g, idx) => [
                     `#${idx + 1}`,
                     g.studentName,
                     g.room,
                     g.period,
-                    g.math,
-                    g.khmer,
-                    g.physics,
-                    g.chemistry,
-                    g.english,
+                    ...subjectsList.map(s => g.scores?.[s.code] ?? g[s.code.toLowerCase()] ?? 0),
                     g.total,
                     g.avg,
                     g.mention
@@ -3970,12 +4287,20 @@
 
         function openAddGradeModal(gradeId = null) {
             const grd = gradeId ? db.grades.find(x => x.id === gradeId) : null;
-            const yearStudents = db.students.filter(s => s.year === db.settings.currentYear);
+            const yearStudents = db.students.filter(s => s.year === db.settings.currentYear && isItemInActiveLevel(s));
+            const subjectsList = db.subjects || [];
 
             if (!grd && yearStudents.length === 0) {
                 showToast('សូមបញ្ចូលទិន្នន័យសិស្សក្នុងឆ្នាំសិក្សានេះជាមុនសិន មុននឹងបញ្ចូលពិន្ទុ!', 'error');
                 return;
             }
+
+            const allMonthsList = [
+                'ប្រចាំខែ មករា', 'ប្រចាំខែ កុម្ភៈ', 'ប្រចាំខែ មីនា', 'ប្រចាំខែ មេសា',
+                'ប្រចាំខែ ឧសភា', 'ប្រចាំខែ មិថុនា', 'ប្រចាំខែ កក្កដា', 'ប្រចាំខែ សីហា',
+                'ប្រចាំខែ កញ្ញា', 'ប្រចាំខែ តុលា', 'ប្រចាំខែ វិច្ឆិកា', 'ប្រចាំខែ ធ្នូ',
+                'ប្រឡងឆមាសទី ១', 'ប្រឡងឆមាសទី ២', 'ប្រឡងប្រចាំឆ្នាំ'
+            ];
 
             openModal(grd ? 'កែប្រែពិន្ទុប្រឡងសិស្ស' : 'បញ្ចូលពិន្ទុប្រឡងសិស្ស', `
                 <form id="gradeForm" class="space-y-4">
@@ -3983,32 +4308,43 @@
                         <div>
                             <label class="block text-xs font-semibold mb-1">ជ្រើសរើសសិស្ស *</label>
                             <select id="grdStu" ${grd ? 'disabled' : ''} required class="w-full px-3 py-2 border rounded-xl text-sm ${grd ? 'bg-slate-100' : ''}">
-                                ${yearStudents.map(s => `<option value="${s.id}" ${grd?.studentId === s.id ? 'selected' : ''}>${s.nameKh} (${s.room})</option>`).join('')}
+                                ${yearStudents.map(s => `<option value="${s.id}" ${grd?.studentId === s.id ? 'selected' : ''}>${s.nameKh} (ថ្នាក់ ${s.room})</option>`).join('')}
                             </select>
                         </div>
                         <div>
                             <label class="block text-xs font-semibold mb-1">ប្រភេទប្រឡង / ខែ *</label>
-                            <select id="grdPeriod" class="w-full px-3 py-2 border rounded-xl text-sm">
-                                <option ${grd?.period === 'ប្រចាំខែ វិច្ឆិកា' ? 'selected' : ''}>ប្រចាំខែ វិច្ឆិកា</option>
-                                <option ${grd?.period === 'ប្រចាំខែ ធ្នូ' ? 'selected' : ''}>ប្រចាំខែ ធ្នូ</option>
-                                <option ${grd?.period === 'ប្រឡងឆមាសទី ១' ? 'selected' : ''}>ប្រឡងឆមាសទី ១</option>
-                                <option ${grd?.period === 'ប្រឡងឆមាសទី ២' ? 'selected' : ''}>ប្រឡងឆមាសទី ២</option>
-                                <option ${grd?.period === 'ប្រឡងប្រចាំឆ្នាំ' ? 'selected' : ''}>ប្រឡងប្រចាំឆ្នាំ</option>
+                            <select id="grdPeriod" class="w-full px-3 py-2 border rounded-xl text-sm font-bold text-primary-700">
+                                ${allMonthsList.map(m => `<option ${grd?.period === m ? 'selected' : ''}>${m}</option>`).join('')}
                             </select>
                         </div>
-                        <div>
+                        <div class="sm:col-span-2">
                             <label class="block text-xs font-semibold mb-1">កាលបរិច្ឆេទ (Date)</label>
                             <input type="date" id="grdDate" value="${grd ? (grd.date || new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0]}" class="w-full px-3 py-2 border rounded-xl text-sm font-bold">
                         </div>
-                        <div><label class="block text-xs font-semibold mb-1">គណិតវិទ្យា (ពេញ 125)</label><input type="number" max="125" min="0" step="0.5" id="grdMath" required value="${grd ? grd.math : 95}" class="w-full px-3 py-2 border rounded-xl text-sm"></div>
-                        <div><label class="block text-xs font-semibold mb-1">អក្សរសាស្ត្រខ្មែរ (ពេញ 100)</label><input type="number" max="100" min="0" step="0.5" id="grdKhmer" required value="${grd ? grd.khmer : 80}" class="w-full px-3 py-2 border rounded-xl text-sm"></div>
-                        <div><label class="block text-xs font-semibold mb-1">រូបវិទ្យា (ពេញ 75)</label><input type="number" max="75" min="0" step="0.5" id="grdPhys" required value="${grd ? grd.physics : 60}" class="w-full px-3 py-2 border rounded-xl text-sm"></div>
-                        <div><label class="block text-xs font-semibold mb-1">គីមីវិទ្យា (ពេញ 75)</label><input type="number" max="75" min="0" step="0.5" id="grdChem" required value="${grd ? grd.chemistry : 55}" class="w-full px-3 py-2 border rounded-xl text-sm"></div>
-                        <div><label class="block text-xs font-semibold mb-1">ភាសាអង់គ្លេស (ពេញ 50)</label><input type="number" max="50" min="0" step="0.5" id="grdEng" required value="${grd ? grd.english : 40}" class="w-full px-3 py-2 border rounded-xl text-sm"></div>
                     </div>
+
+                    <div class="pt-2 border-t">
+                        <p class="text-xs font-bold text-slate-700 mb-2">បញ្ចូលពិន្ទុតាមមុខវិជ្ជាទាំងអស់៖</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto p-1">
+                            ${subjectsList.map(sub => {
+                                const existingScore = grd ? (grd.scores?.[sub.code] ?? grd[sub.code.toLowerCase()] ?? 0) : 50;
+                                return `
+                                    <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                                        <div class="flex justify-between items-center text-xs">
+                                            <span class="font-bold text-slate-800">${sub.nameKh}</span>
+                                            <span class="text-slate-400 font-mono text-[11px]">ពេញ ${sub.maxScore || 100}</span>
+                                        </div>
+                                        <input type="number" max="${sub.maxScore || 100}" min="0" step="0.5" id="subScore_${sub.code}" required value="${existingScore}" class="w-full px-3 py-1.5 bg-white border rounded-lg text-xs font-bold">
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+
                     <button type="submit" class="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-sm font-semibold shadow-md">${grd ? 'រក្សាទុកការកែប្រែ' : 'រក្សាទុកពិន្ទុ'}</button>
                 </form>
             `);
+
             document.getElementById('gradeForm').onsubmit = (e) => {
                 e.preventDefault();
                 const stuId = grd ? grd.studentId : document.getElementById('grdStu').value;
@@ -4021,35 +4357,30 @@
 
                 const periodVal = document.getElementById('grdPeriod').value;
                 const dateVal = document.getElementById('grdDate').value;
-                const mathVal = Number(document.getElementById('grdMath').value) || 0;
-                const khmerVal = Number(document.getElementById('grdKhmer').value) || 0;
-                const physVal = Number(document.getElementById('grdPhys').value) || 0;
-                const chemVal = Number(document.getElementById('grdChem').value) || 0;
-                const engVal = Number(document.getElementById('grdEng').value) || 0;
+                
+                const scoresObj = {};
+                subjectsList.forEach(sub => {
+                    const inputEl = document.getElementById(`subScore_${sub.code}`);
+                    scoresObj[sub.code] = inputEl ? (Number(inputEl.value) || 0) : 0;
+                });
 
                 if (grd) {
                     grd.period = periodVal;
                     grd.date = dateVal;
-                    grd.math = mathVal;
-                    grd.khmer = khmerVal;
-                    grd.physics = physVal;
-                    grd.chemistry = chemVal;
-                    grd.english = engVal;
+                    grd.scores = scoresObj;
                     logAudit('កែប្រែពិន្ទុសិស្ស', `${grd.studentName} (${periodVal})`);
                     showToast('បានកែប្រែពិន្ទុសិស្សជោគជ័យ!', 'success');
                 } else {
                     db.grades.push({
                         id: 'GRD-' + Date.now().toString().slice(-4),
+                        level: stu.level || getActiveLevel(),
+                        grade: stu.grade,
                         studentId: stu.id,
                         studentName: stu.nameKh,
                         room: stu.room,
                         period: periodVal,
                         date: dateVal,
-                        math: mathVal,
-                        khmer: khmerVal,
-                        physics: physVal,
-                        chemistry: chemVal,
-                        english: engVal,
+                        scores: scoresObj,
                         year: db.settings.currentYear
                     });
                     logAudit('បញ្ចូលពិន្ទុសិស្ស', `${stu.nameKh} (${periodVal})`);
@@ -4059,32 +4390,11 @@
             };
         }
 
-        function deleteGrade(id) {
-            const grd = db.grades.find(g => g.id === id);
-            if (!grd) return;
-            confirmDelete(`ពិន្ទុរបស់ ${grd.studentName} (${grd.period})`, () => {
-                db.grades = db.grades.filter(g => g.id !== id);
-                logAudit('លុបពិន្ទុសិស្ស', `${grd.studentName} (${grd.period})`);
-                saveDB();
-                renderGrades(document.getElementById('mainContent'));
-                showToast('បានលុបទិន្នន័យពិន្ទុរួចរាល់', 'info');
-            });
-        }
-
-        function printGradesTable() {
-            const content = `
-                <div class="text-center mb-4">
-                    <h2 class="text-xl font-bold">${db.settings.schoolNameKh}</h2>
-                    <p class="text-sm">តារាងពិន្ទុ និងចំណាត់ថ្នាក់សិស្ស ឆ្នាំសិក្សា ${db.settings.currentYear}</p>
-                </div>
-                ${document.getElementById('gradesPrintableArea').innerHTML}
-            `;
-            printHTML(content);
-        }
-
         function printReportCard(gradeId, rank) {
             const g = db.grades.find(x => x.id === gradeId);
             const stats = calculateGradeStats(g);
+            const subjectsList = db.subjects || [];
+
             printHTML(`
                 <div class="max-w-lg mx-auto border-2 border-slate-800 p-6 rounded-xl space-y-4">
                     <div class="text-center border-b pb-3">
@@ -4098,11 +4408,10 @@
                     </div>
                     <table class="w-full border-collapse border border-slate-400 text-sm">
                         <tr class="bg-slate-100"><th class="border border-slate-400 p-2 text-left">មុខវិជ្ជា</th><th class="border border-slate-400 p-2">ពិន្ទុពេញ</th><th class="border border-slate-400 p-2">ពិន្ទុទទួលបាន</th></tr>
-                        <tr><td class="border border-slate-400 p-2">គណិតវិទ្យា</td><td class="border border-slate-400 p-2 text-center">125</td><td class="border border-slate-400 p-2 text-center font-bold">${g.math}</td></tr>
-                        <tr><td class="border border-slate-400 p-2">អក្សរសាស្ត្រខ្មែរ</td><td class="border border-slate-400 p-2 text-center">100</td><td class="border border-slate-400 p-2 text-center font-bold">${g.khmer}</td></tr>
-                        <tr><td class="border border-slate-400 p-2">រូបវិទ្យា</td><td class="border border-slate-400 p-2 text-center">75</td><td class="border border-slate-400 p-2 text-center font-bold">${g.physics}</td></tr>
-                        <tr><td class="border border-slate-400 p-2">គីមីវិទ្យា</td><td class="border border-slate-400 p-2 text-center">75</td><td class="border border-slate-400 p-2 text-center font-bold">${g.chemistry}</td></tr>
-                        <tr><td class="border border-slate-400 p-2">ភាសាអង់គ្លេស</td><td class="border border-slate-400 p-2 text-center">50</td><td class="border border-slate-400 p-2 text-center font-bold">${g.english}</td></tr>
+                        ${subjectsList.map(sub => {
+                            const val = g.scores?.[sub.code] ?? g[sub.code.toLowerCase()] ?? 0;
+                            return `<tr><td class="border border-slate-400 p-2">${sub.nameKh}</td><td class="border border-slate-400 p-2 text-center">${sub.maxScore || 100}</td><td class="border border-slate-400 p-2 text-center font-bold">${val}</td></tr>`;
+                        }).join('')}
                     </table>
                     <div class="bg-slate-50 p-3 rounded-lg text-sm flex justify-between font-bold">
                         <span>ពិន្ទុសរុប៖ ${stats.total}</span>
