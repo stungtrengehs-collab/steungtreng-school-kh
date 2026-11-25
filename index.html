@@ -6058,34 +6058,7 @@
             renderSidebar();
             navigateTo('dashboard');
             showToast('🗑️ បានលុបទិន្នន័យទាំងអស់ចេញពីប្រព័ន្ធរួចរាល់!', 'success');
-        }
-        async function resetStudentsFor2026_2027() {
-  try {
-    // ១. សម្អាតបញ្ជីសិស្សក្នុង db ប្រសិនបើមាន
-    if (typeof db !== 'undefined' && db && Array.isArray(db.students)) {
-      db.students = [];
-    }
-
-    // ២. រក្សាទុក / sync state តាមមុខងាររបស់ប្រព័ន្ធ (បើមាន saveDB)
-    if (typeof saveDB === 'function') {
-      saveDB();
-    }
-
-    // ៣. លុប node /school_system_data/students ក្នុង Firebase Realtime Database
-    if (typeof firebase !== 'undefined' && firebase.database) {
-      await firebase.database().ref('/school_system_data/students').remove();
-    }
-
-    // ៤. ធ្វើបច្ចុប្បន្នភាព UI ប្រសិនបើមាន function render
-    if (typeof renderStudents === 'function') {
-      renderStudents([]);
-    }
-
-    console.log('✅ បានសម្អាតទិន្នន័យសិស្សសម្រាប់ឆ្នាំ ២០២៦-២០២៧ រួចរាល់។');
-  } catch (err) {
-    console.error('❌ បញ្ហាក្នុងការសម្អាតទិន្នន័យសិស្ស:', err);
-  }
-}
+        }  
     </script>
 </body>
 </html>
