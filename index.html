@@ -750,64 +750,42 @@
                     rtdbRef = firebase.database().ref('school_system_data');
                     
                     // Realtime Listener
-                    rtdbRef.on('value', (snapshot) => {
-                        try {
-                            const cloudData = snapshot.val();
-                            if (cloudData && typeof cloudData === 'object') {
-                                // Extract students whether stored as Array or Object map in Firebase
-                                const rawCloudStudents = cloudData.students
-                                    ? (Array.isArray(cloudData.students) ? cloudData.students.filter(Boolean) : Object.values(cloudData.students))
-                                    : [];
-                                const localStuCount = (db.students || []).length;
+                   // Realtime Listener
+                            rtdbRef.on('value', (snapshot) => {
+                                try {
+                                    const cloudData = snapshot.val();
+                                    if (cloudData && typeof cloudData === 'object') {
+                                        // Extract students whether stored as Array or Object map in Firebase
+                                        const rawCloudStudents = cloudData.students
+                                            ? (Array.isArray(cloudData.students) ? cloudData.students.filter(Boolean) : Object.values(cloudData.students))
+                                            : [];
+                                        const localStuCount = (db.students || []).length;
 
-                                if (rawCloudStudents.length > 0 && (rawCloudStudents.length >= localStuCount || localStuCount <= 5)) {
-                                    cloudData.students = rawCloudStudents;
-                                    db = normalizeDB(cloudData);
-                                    localStorage.setItem(DB_KEY, JSON.stringify(db));
-                                    if (currentUser) {
-                                        updateHeaderInfo();
-                                        navigateTo(currentTab);
+                                        if (rawCloudStudents.length > 0 && (rawCloudStudents.length >= localStuCount || localStuCount <= 5)) {
+                                            cloudData.students = rawCloudStudents;
+                                            db = normalizeDB(cloudData);
+                                            localStorage.setItem(DB_KEY, JSON.stringify(db));
+                                            if (currentUser) {
+                                                updateHeaderInfo();
+                                                navigateTo(currentTab);
+                                            }
+                                            if (rawCloudStudents.length > 5) {
+                                                showToast(`☁️ បានទាញយកទិន្នន័យសិស្សទាំង ${rawCloudStudents.length} នាក់ពី Cloud ជោគជ័យ!`, 'success');
+                                            }
+                                        } else if (localStuCount > rawCloudStudents.length && localStuCount > 5) {
+                                            rtdbRef.set(db);
+                                        }
+                                    } else {
+                                        // រក្សា students ឱ្យទទេស្អាតសម្រាប់ឆ្នាំសិក្សា ២០២៦-២០២៧ (មិនទាញពី root nodes ផ្សេងៗមកវិញទេ)
+                                        db.students = [];
+                                        localStorage.setItem(DB_KEY, JSON.stringify(db));
                                     }
-                                    if (rawCloudStudents.length > 5) {
-                                        showToast(`☁️ បានទាញយកទិន្នន័យសិស្សទាំង ${rawCloudStudents.length} នាក់ពី Cloud ជោគជ័យ!`, 'success');
-                                    }
-                                } else if (localStuCount > rawCloudStudents.length && localStuCount > 5) {
-                                    rtdbRef.set(db);
+                                } catch (err) {
+                                    console.error('Realtime listener error:', err);
                                 }
-                            } else {
-                                // រក្សា students ឱ្យទទេស្អាតសម្រាប់ឆ្នាំសិក្សា ២០២៦-២០២៧ (មិនទាញពី root nodes ផ្សេងៗមកវិញទេ)
-                                db.students = [];
-                                localStorage.setItem(DB_KEY, JSON.stringify(db));
-                            }
-                            }
-                        } catch (err) {
-                            console.error('Realtime sync parse error:', err);
-                        }
-                    }, (err) => {
-                        console.error('Firebase listener error:', err);
-                    });
-                    console.log('Firebase Cloud Sync initialized successfully.');
-                }
-            } catch (err) {
-                console.error('Firebase init error:', err);
-            }
-        }
-
-        function openFirebaseConfigModal() {
-            const savedConfig = localStorage.getItem('FIREBASE_CONFIG_JSON') || JSON.stringify(PERMANENT_FIREBASE_CONFIG, null, 2);
-            openModal('ភ្ជាប់ Firebase Realtime Database (ពីកូដ Config របស់អ្នក)', `
-                <div class="space-y-4 text-sm">
-                    <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-1">
-                        <p class="font-bold">📌 ជំហានយក Firebase Config ដូចក្នុងរូបភាពរបស់អ្នក:</p>
-                        <p>១. Copy កូដ <code>const firebaseConfig = { ... };</code> ពី Firebase Console</p>
-                        <p>២. យកមកបិទភ្ជាប់ (Paste) ក្នុងប្រអប់ខាងក្រោមនេះ:</p>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold mb-1">Firebase Config (JSON format):</label>
-                        <textarea id="fbConfigInput" rows="7" class="w-full p-3 font-mono text-xs border border-slate-300 rounded-xl bg-slate-50" placeholder='{
-  "apiKey": "AIzaSy...",
-  "authDomain": "school-management-system-4ea14.firebaseapp.com",
-  "databaseURL": "https://school-management-system-4ea14-default-rtdb.asia-southeast1.firebasedatabase.app",
+                            }, (err) => {
+                                console.error('Firebase read error:', err);
+                            });
   "projectId": "school-management-system-4ea14",
   "storageBucket": "school-management-system-4ea14.appspot.com",
   "messagingSenderId": "686671411595",
