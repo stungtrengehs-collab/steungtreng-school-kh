@@ -293,7 +293,11 @@
                     { id: 'CLS-02', level: 'SECONDARY', grade: '8', room: '៨ក', group: 'ក្រុម A', teacherId: 'TCH002', year: '2025-2026', tgBotToken: '', tgChatId: '', tgAutoNotify: true },
                     { id: 'CLS-03', level: 'SECONDARY', grade: '9', room: '៩ក', group: 'ក្រុម A', teacherId: 'TCH003', year: '2025-2026', tgBotToken: '', tgChatId: '', tgAutoNotify: true }
                 ],
-                students: [], // ទទេស្អាតសម្រាប់ត្រៀមនាំចូលទិន្នន័យសិស្សថ្មី ឆ្នាំសិក្សា ២០២៦-២០២៧
+                students: [
+                    { id: 'STU0001', level: 'SECONDARY', nameKh: 'សុខ ដារ៉ា', nameEn: 'Sok Dara', gender: 'ប្រុស', dob: '2012-05-12', grade: '7', room: '៧ក', group: 'ក្រុម A', phone: '012 345 678', year: '2025-2026', feeTotal: 250, feePaid: 250, photo: '', history: ['2025-2026: ចុះឈ្មោះចូលរៀនថ្នាក់ ៧ក'] },
+                    { id: 'STU0002', level: 'SECONDARY', nameKh: 'ចាន់ ស្រីពេជ្រ', nameEn: 'Chan Sreypich', gender: 'ស្រី', dob: '2011-08-20', grade: '8', room: '៨ក', group: 'ក្រុម A', phone: '015 987 654', year: '2025-2026', feeTotal: 250, feePaid: 150, photo: '', history: ['2025-2026: ចុះឈ្មោះចូលរៀនថ្នាក់ ៨ក'] },
+                    { id: 'STU0003', level: 'SECONDARY', nameKh: 'លី ណារី', nameEn: 'Ly Nary', gender: 'ស្រី', dob: '2010-03-14', grade: '9', room: '៩ក', group: 'ក្រុម A', phone: '077 112 233', year: '2025-2026', feeTotal: 250, feePaid: 250, photo: '', history: ['2025-2026: ចុះឈ្មោះចូលរៀនថ្នាក់ ៩ក'] }
+                ],
                 teachers: [
                     { id: 'TCH001', nameKh: 'លោកគ្រូ កែវ សុខា', nameEn: 'Keo Sokha', gender: 'ប្រុស', subject: 'គណិតវិទ្យា', homeroom: '៧ក', hoursPerWeek: 18, phone: '012 888 999', experience: 'បរិញ្ញាបត្រគណិតវិទ្យា (៥ឆ្នាំ)', hourlyRate: 5 },
                     { id: 'TCH002', nameKh: 'អ្នកគ្រូ ហេង ម៉ាលី', nameEn: 'Heng Maly', gender: 'ស្រី', subject: 'អក្សរសាស្ត្រខ្មែរ', homeroom: '៨ក', hoursPerWeek: 18, phone: '092 444 555', experience: 'បរិញ្ញាបត្រអក្សរសាស្ត្រខ្មែរ (៧ឆ្នាំ)', hourlyRate: 5 },
@@ -750,43 +754,88 @@
                     rtdbRef = firebase.database().ref('school_system_data');
                     
                     // Realtime Listener
-                   // Realtime Listener
-                            rtdbRef.on('value', (snapshot) => {
-                                try {
-                                    const cloudData = snapshot.val();
-                                    if (cloudData && typeof cloudData === 'object') {
-                                        // Extract students whether stored as Array or Object map in Firebase
-                                        const rawCloudStudents = cloudData.students
-                                            ? (Array.isArray(cloudData.students) ? cloudData.students.filter(Boolean) : Object.values(cloudData.students))
-                                            : [];
-                                        const localStuCount = (db.students || []).length;
+                    rtdbRef.on('value', (snapshot) => {
+                        try {
+                            const cloudData = snapshot.val();
+                            if (cloudData && typeof cloudData === 'object') {
+                                // Extract students whether stored as Array or Object map in Firebase
+                                const rawCloudStudents = cloudData.students 
+                                    ? (Array.isArray(cloudData.students) ? cloudData.students.filter(Boolean) : Object.values(cloudData.students))
+                                    : [];
+                                const localStuCount = (db.students || []).length;
 
-                                        if (rawCloudStudents.length > 0 && (rawCloudStudents.length >= localStuCount || localStuCount <= 5)) {
-                                            cloudData.students = rawCloudStudents;
-                                            db = normalizeDB(cloudData);
-                                            localStorage.setItem(DB_KEY, JSON.stringify(db));
-                                            if (currentUser) {
-                                                updateHeaderInfo();
-                                                navigateTo(currentTab);
-                                            }
-                                            if (rawCloudStudents.length > 5) {
-                                                showToast(`☁️ បានទាញយកទិន្នន័យសិស្សទាំង ${rawCloudStudents.length} នាក់ពី Cloud ជោគជ័យ!`, 'success');
-                                            }
-                                        } else if (localStuCount > rawCloudStudents.length && localStuCount > 5) {
-                                            rtdbRef.set(db);
-                                        }
-                                    } else {
-                                        // រក្សា students ឱ្យទទេស្អាតសម្រាប់ឆ្នាំសិក្សា ២០២៦-២០២៧ (មិនទាញពី root nodes ផ្សេងៗមកវិញទេ)
-                                        db.students = [];
-                                        localStorage.setItem(DB_KEY, JSON.stringify(db));
+                                // Always prefer whichever source has the real data (> 5 students) so cloud data is NEVER overwritten by default sample data
+                                if (rawCloudStudents.length > 0 && (rawCloudStudents.length >= localStuCount || localStuCount <= 5)) {
+                                    cloudData.students = rawCloudStudents;
+                                    db = normalizeDB(cloudData);
+                                    localStorage.setItem(DB_KEY, JSON.stringify(db));
+                                    if (currentUser) {
+                                        updateHeaderInfo();
+                                        navigateTo(currentTab);
                                     }
-                                } catch (err) {
-                                    console.error('Realtime listener error:', err);
+                                    if (rawCloudStudents.length > 5) {
+                                        showToast(`☁️ បានទាញយកទិន្នន័យសិស្សទាំង ${rawCloudStudents.length} នាក់ពី Cloud ជោគជ័យ!`, 'success');
+                                    }
+                                } else if (localStuCount > rawCloudStudents.length && localStuCount > 5) {
+                                    rtdbRef.set(db);
                                 }
-                            }, (err) => {
-                                console.error('Firebase read error:', err);
-                            });
-                    
+                            } else {
+                                // Check root of Firebase DB in case data was saved under a different node
+                                firebase.database().ref('/').once('value').then((rootSnap) => {
+                                    const rootVal = rootSnap.val();
+                                    if (!rootVal) return;
+                                    let foundStudents = [];
+                                    Object.values(rootVal).forEach(node => {
+                                        if (node && node.students) {
+                                            const list = Array.isArray(node.students) ? node.students.filter(Boolean) : Object.values(node.students);
+                                            if (list.length > foundStudents.length) {
+                                                foundStudents = list;
+                                                db = normalizeDB({ ...node, students: list });
+                                            }
+                                        }
+                                    });
+                                    if (foundStudents.length > 0) {
+                                        localStorage.setItem(DB_KEY, JSON.stringify(db));
+                                        if (currentUser) {
+                                            updateHeaderInfo();
+                                            navigateTo(currentTab);
+                                        }
+                                        showToast(`☁️ រកឃើញ និងទាញយកសិស្សចំនួន ${foundStudents.length} នាក់ពី Cloud!`, 'success');
+                                    }
+                                });
+                            }
+                        } catch (err) {
+                            console.error('Realtime sync parse error:', err);
+                        }
+                    }, (err) => {
+                        console.error('Firebase listener error:', err);
+                    });
+                    console.log('Firebase Cloud Sync initialized successfully.');
+                }
+            } catch (err) {
+                console.error('Firebase init error:', err);
+            }
+        }
+
+        function openFirebaseConfigModal() {
+            const savedConfig = localStorage.getItem('FIREBASE_CONFIG_JSON') || JSON.stringify(PERMANENT_FIREBASE_CONFIG, null, 2);
+            openModal('ភ្ជាប់ Firebase Realtime Database (ពីកូដ Config របស់អ្នក)', `
+                <div class="space-y-4 text-sm">
+                    <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-1">
+                        <p class="font-bold">📌 ជំហានយក Firebase Config ដូចក្នុងរូបភាពរបស់អ្នក:</p>
+                        <p>១. Copy កូដ <code>const firebaseConfig = { ... };</code> ពី Firebase Console</p>
+                        <p>២. យកមកបិទភ្ជាប់ (Paste) ក្នុងប្រអប់ខាងក្រោមនេះ:</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold mb-1">Firebase Config (JSON format):</label>
+                        <textarea id="fbConfigInput" rows="7" class="w-full p-3 font-mono text-xs border border-slate-300 rounded-xl bg-slate-50" placeholder='{
+  "apiKey": "AIzaSy...",
+  "authDomain": "school-management-system-4ea14.firebaseapp.com",
+  "databaseURL": "https://school-management-system-4ea14-default-rtdb.asia-southeast1.firebasedatabase.app",
+  "projectId": "school-management-system-4ea14",
+  "storageBucket": "school-management-system-4ea14.appspot.com",
+  "messagingSenderId": "686671411595",
+  "appId": "1:686671411595:web:..."
 }'>${savedConfig}</textarea>
                     </div>
                     <div class="flex justify-end gap-2 pt-2">
