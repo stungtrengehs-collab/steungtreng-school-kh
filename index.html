@@ -755,12 +755,11 @@
                             const cloudData = snapshot.val();
                             if (cloudData && typeof cloudData === 'object') {
                                 // Extract students whether stored as Array or Object map in Firebase
-                                const rawCloudStudents = cloudData.students 
+                                const rawCloudStudents = cloudData.students
                                     ? (Array.isArray(cloudData.students) ? cloudData.students.filter(Boolean) : Object.values(cloudData.students))
                                     : [];
                                 const localStuCount = (db.students || []).length;
 
-                                // Always prefer whichever source has the real data (> 5 students) so cloud data is NEVER overwritten by default sample data
                                 if (rawCloudStudents.length > 0 && (rawCloudStudents.length >= localStuCount || localStuCount <= 5)) {
                                     cloudData.students = rawCloudStudents;
                                     db = normalizeDB(cloudData);
@@ -776,29 +775,10 @@
                                     rtdbRef.set(db);
                                 }
                             } else {
-                                // Check root of Firebase DB in case data was saved under a different node
-                                firebase.database().ref('/').once('value').then((rootSnap) => {
-                                    const rootVal = rootSnap.val();
-                                    if (!rootVal) return;
-                                    let foundStudents = [];
-                                    Object.values(rootVal).forEach(node => {
-                                        if (node && node.students) {
-                                            const list = Array.isArray(node.students) ? node.students.filter(Boolean) : Object.values(node.students);
-                                            if (list.length > foundStudents.length) {
-                                                foundStudents = list;
-                                                db = normalizeDB({ ...node, students: list });
-                                            }
-                                        }
-                                    });
-                                    if (foundStudents.length > 0) {
-                                        localStorage.setItem(DB_KEY, JSON.stringify(db));
-                                        if (currentUser) {
-                                            updateHeaderInfo();
-                                            navigateTo(currentTab);
-                                        }
-                                        showToast(`☁️ រកឃើញ និងទាញយកសិស្សចំនួន ${foundStudents.length} នាក់ពី Cloud!`, 'success');
-                                    }
-                                });
+                                // រក្សា students ឱ្យទទេស្អាតសម្រាប់ឆ្នាំសិក្សា ២០២៦-២០២៧ (មិនទាញពី root nodes ផ្សេងៗមកវិញទេ)
+                                db.students = [];
+                                localStorage.setItem(DB_KEY, JSON.stringify(db));
+                            }
                             }
                         } catch (err) {
                             console.error('Realtime sync parse error:', err);
