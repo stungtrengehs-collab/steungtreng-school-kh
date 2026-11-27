@@ -390,21 +390,17 @@
                 ? (Array.isArray(raw.students) ? raw.students.filter(Boolean) : Object.values(raw.students).filter(Boolean))
                 : def.students;
             const mergedSettings = { ...def.settings, ...(raw.settings || {}) };
-            // ធ្វើបច្ចុប្បន្នភាពឆ្នាំសិក្សាផ្លូវការចាប់ពី 2026-2027 ឡើងទៅ
-            const rawYears = Array.isArray(mergedSettings.academicYears) ? mergedSettings.academicYears : [];
-            const validYears = [...new Set(['2026-2027', '2027-2028', '2028-2029', ...rawYears.filter(y => String(y) >= '2026-2027')])];
-            mergedSettings.academicYears = validYears;
-            if (!mergedSettings.currentYear || String(mergedSettings.currentYear) < '2026-2027') {
-                mergedSettings.currentYear = '2026-2027';
+            // រក្សាទម្រង់ដើម និងការកំណត់ឆ្នាំសិក្សាដែលមានស្រាប់របស់អ្នកប្រើប្រាស់ ដោយគ្រាន់តែបន្ថែមឆ្នាំថ្មីបើមិនទាន់មាន
+            const rawYears = Array.isArray(mergedSettings.academicYears) && mergedSettings.academicYears.length > 0
+                ? mergedSettings.academicYears
+                : def.settings.academicYears;
+            mergedSettings.academicYears = [...new Set([...rawYears, '2026-2027', '2027-2028', '2028-2029'])];
+            if (!mergedSettings.currentYear) {
+                mergedSettings.currentYear = def.settings.currentYear;
             }
-            mergedSettings.officialYearMigrationTag = OFFICIAL_YEAR_MIGRATION_TAG;
 
-            const normalizedClasses = (Array.isArray(raw.classes) ? raw.classes : def.classes).map(c =>
-                (!c.year || String(c.year) < '2026-2027') ? { ...c, year: '2026-2027' } : c
-            );
-            const normalizedStudents = rawStudents.map(s =>
-                (!s.year || String(s.year) < '2026-2027') ? { ...s, year: '2026-2027' } : s
-            );
+            const normalizedClasses = Array.isArray(raw.classes) ? raw.classes : def.classes;
+            const normalizedStudents = rawStudents;
 
             return {
                 settings: mergedSettings,
@@ -1086,12 +1082,17 @@
                             <div class="divide-y divide-slate-100 max-h-64 overflow-y-auto">
                                 ${db.attendance.length === 0 ? `<p class="py-8 text-center text-xs text-slate-400">មិនទាន់មានកំណត់ត្រាវត្តមានទេ</p>` :
                                 db.attendance.slice(0, 8).map(a => `
-                                    <div class="py-2.5 flex items-center justify-between text-xs">
-                                        <div>
-                                            <p class="font-bold text-slate-800">${a.targetName} <span class="font-mono text-[11px] text-primary-600">(${a.targetId})</span></p>
-                                            <p class="text-[11px] text-slate-500">ថ្នាក់ ${a.room} • ${a.subject} • ${a.time || ''}</p>
+                                    <div class="py-2.5 flex items-center justify-between gap-2 text-xs">
+                                        <div class="min-w-0 flex-1">
+                                            <p class="font-bold text-slate-800 truncate">${a.targetName} <span class="font-mono text-[11px] text-primary-600">(${a.targetId})</span></p>
+                                            <p class="text-[11px] text-slate-500 truncate">ថ្នាក់ ${a.room} • ${a.subject} • ${a.time || ''}</p>
                                         </div>
-                                        <span class="px-2.5 py-1 rounded-lg font-bold ${a.status==='មានវត្តមាន'?'bg-emerald-50 text-emerald-700':a.status==='អវត្តមាន'?'bg-red-50 text-red-600':'bg-amber-50 text-amber-700'}">${a.status}</span>
+                                        <div class="flex items-center gap-1.5 shrink-0">
+                                            <span class="px-2.5 py-1 rounded-lg font-bold ${a.status==='មានវត្តមាន'?'bg-emerald-50 text-emerald-700':a.status==='អវត្តមាន'?'bg-red-50 text-red-600':'bg-amber-50 text-amber-700'}">${a.status}</span>
+                                            <button type="button" onclick="deleteRecentAttendanceItem('${a.id}')" title="លុបកំណត់ត្រានេះ" class="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                 `).join('')}
                             </div>
@@ -1127,6 +1128,17 @@
                 saveDB();
                 renderDashboard(document.getElementById('mainContent'));
                 showToast('បានលុបកំណត់ត្រាវត្តមានទាំងអស់រួចរាល់!', 'info');
+            });
+        }
+
+        function deleteRecentAttendanceItem(id) {
+            const rec = (db.attendance || []).find(x => x.id === id);
+            if (!rec) return;
+            confirmDelete(`វត្តមានរបស់ ${rec.targetName} (${rec.time || rec.date})`, () => {
+                db.attendance = db.attendance.filter(x => x.id !== id);
+                saveDB();
+                renderDashboard(document.getElementById('mainContent'));
+                showToast('បានលុបកំណត់ត្រាវត្តមានរួចរាល់!', 'info');
             });
         }
 
@@ -1855,7 +1867,7 @@
                     </div>
                     <div class="pt-1 flex flex-col items-center">
                         <div id="stuSingleQr"></div>
-                        <p class="text-[9px] text-slate-400 mt-1">ស្កេន QR Code ដើម្បីកត់វត្តមាន</p>
+                        <p class="text-[9px] text-slate-400 mt-1">ស្កេន QR Code ប្រចាំថ្នាក់ <strong>${s.room}</strong></p>
                     </div>
                 </div>
             `;
@@ -1868,7 +1880,7 @@
                 </div>
             `);
             setTimeout(() => {
-                if (typeof QRCode !== 'undefined') new QRCode(document.getElementById('stuSingleQr'), { text: s.id, width: 80, height: 80 });
+                if (typeof QRCode !== 'undefined') new QRCode(document.getElementById('stuSingleQr'), { text: `${s.id}|${s.room || ''}`, width: 80, height: 80 });
             }, 100);
         }
 
@@ -2178,7 +2190,7 @@
                         </div>
                         <div class="flex flex-col items-center justify-center border-t border-slate-100 pt-1">
                             <div id="allStuQr_${idx}" class="flex justify-center"></div>
-                            <p class="text-[8px] text-slate-400 text-center mt-0.5">ស្កេន QR Code ដើម្បីកត់វត្តមាន</p>
+                            <p class="text-[8px] text-slate-400 text-center mt-0.5">ស្កេន QR Code ប្រចាំថ្នាក់ <strong>${s.room || '-'}</strong></p>
                         </div>
                     </div>
                 `;
@@ -2196,7 +2208,7 @@
             setTimeout(() => {
                 yearStudents.forEach((s, idx) => {
                     const el = document.getElementById(`allStuQr_${idx}`);
-                    if (el && typeof QRCode !== 'undefined') new QRCode(el, { text: s.id, width: 75, height: 75 });
+                    if (el && typeof QRCode !== 'undefined') new QRCode(el, { text: `${s.id}|${s.room || ''}`, width: 75, height: 75 });
                 });
             }, 100);
         }
@@ -2213,6 +2225,7 @@
         let attendanceSelectedMonth = new Date().toISOString().slice(0, 7);
         let attendanceScanMode = 'ម៉ោងចូល (Check-in)';
         let attendanceRadioStatus = 'មានវត្តមាន';
+        let attendanceScannerTargetType = 'Student'; // 'Student' ឬ 'Teacher' ដាច់ដោយឡែកពីគ្នា
         let scanDisplayDelaySeconds = 2;
         let isScanPausedForPopup = false;
         let scannerSelectedClass = localStorage.getItem('LOCKED_SCANNER_CLASS') || 'AUTO';
@@ -2457,30 +2470,48 @@
                         </div>
 
                         <!-- Class Selector & Device Lock -->
-                        <div class="p-3.5 rounded-2xl border ${isScannerClassLocked ? 'bg-amber-50/90 border-amber-300' : 'bg-primary-50/70 border-primary-200'} space-y-2.5">
+                        <div class="p-3.5 rounded-2xl border ${attendanceScannerTargetType === 'Teacher' ? 'bg-slate-100/80 border-slate-200 opacity-75' : (isScannerClassLocked ? 'bg-amber-50/90 border-amber-300' : 'bg-primary-50/70 border-primary-200')} space-y-2.5">
                             <div class="flex items-center justify-between gap-2">
-                                <label class="text-xs font-bold ${isScannerClassLocked ? 'text-amber-900' : 'text-primary-900'} flex items-center gap-1.5">
-                                    <i class="fas ${isScannerClassLocked ? 'fa-lock text-amber-600' : 'fa-door-open text-primary-600'}"></i>
-                                    <span>${isScannerClassLocked ? 'ឧបករណ៍ចាក់សោប្រចាំថ្នាក់' : 'ជ្រើសរើសថ្នាក់រៀន'}</span>
+                                <label class="text-xs font-bold ${attendanceScannerTargetType === 'Teacher' ? 'text-slate-600' : (isScannerClassLocked ? 'text-amber-900' : 'text-primary-900')} flex items-center gap-1.5">
+                                    <i class="fas ${attendanceScannerTargetType === 'Teacher' ? 'fa-chalkboard-teacher text-emerald-600' : (isScannerClassLocked ? 'fa-lock text-amber-600' : 'fa-door-open text-primary-600')}"></i>
+                                    <span>${attendanceScannerTargetType === 'Teacher' ? 'របៀបស្កេនគ្រូបង្រៀន (Teacher Only)' : (isScannerClassLocked ? `ចាក់សោស្កេនតែថ្នាក់៖ ${scannerSelectedClass}` : 'ជ្រើសរើសថ្នាក់រៀន (ដាច់ដោយឡែកតាមថ្នាក់)')}</span>
                                 </label>
-                                <button type="button" onclick="toggleScannerClassLock()" class="px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-2xs ${isScannerClassLocked ? 'bg-amber-600 text-white' : 'bg-white text-slate-700 border border-slate-300'}">
-                                    <i class="fas ${isScannerClassLocked ? 'fa-unlock' : 'fa-lock'}"></i>
-                                    <span>${isScannerClassLocked ? 'ដោះសោថ្នាក់' : 'ចាក់សោឧបករណ៍នេះ'}</span>
-                                </button>
+                                ${attendanceScannerTargetType === 'Student' ? `
+                                    <button type="button" onclick="toggleScannerClassLock()" class="px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-2xs ${isScannerClassLocked ? 'bg-amber-600 text-white' : 'bg-white text-slate-700 border border-slate-300'}">
+                                        <i class="fas ${isScannerClassLocked ? 'fa-unlock' : 'fa-lock'}"></i>
+                                        <span>${isScannerClassLocked ? 'ដោះសោថ្នាក់' : 'ចាក់សោថ្នាក់នេះ'}</span>
+                                    </button>
+                                ` : `<span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-[10px] font-bold">ស្កេនបានតែកាតគ្រូ</span>`}
                             </div>
-                            <select onchange="setScannerTargetClass(this.value)" ${isScannerClassLocked ? 'disabled' : ''} class="w-full px-3.5 py-2.5 bg-white border border-primary-300 text-primary-900 rounded-xl text-xs font-bold outline-none">
-                                <option value="AUTO" ${scannerSelectedClass==='AUTO'?'selected':''}>🔄 ស្វ័យប្រវត្តិតាមកាតសិស្ស</option>
-                                ${availableRooms.map(r => `<option value="${r}" ${scannerSelectedClass===r?'selected':''}>🏫 ថ្នាក់ ${r}</option>`).join('')}
+                            <select onchange="setScannerTargetClass(this.value)" ${(isScannerClassLocked || attendanceScannerTargetType === 'Teacher') ? 'disabled' : ''} class="w-full px-3.5 py-2.5 bg-white border border-primary-300 text-primary-900 rounded-xl text-xs font-bold outline-none">
+                                ${attendanceScannerTargetType === 'Teacher'
+                                    ? `<option value="TEACHER_MODE" selected>👩‍🏫 ស្កេនវត្តមានគ្រូបង្រៀន (មិនប្រើថ្នាក់សិស្ស)</option>`
+                                    : `<option value="AUTO" ${scannerSelectedClass==='AUTO'?'selected':''}>🌐 គ្រប់ថ្នាក់ (ស្វ័យប្រវត្តិតាមកាតសិស្ស)</option>
+                                       ${availableRooms.map(r => `<option value="${r}" ${scannerSelectedClass===r?'selected':''}>🏫 ថ្នាក់ ${r} (ស្កេនបានតែសិស្សថ្នាក់ ${r})</option>`).join('')}`
+                                }
+                            </select>
+                            ${attendanceScannerTargetType === 'Student' && scannerSelectedClass !== 'AUTO' ? `
+                                <p class="text-[11px] font-semibold text-amber-800 bg-amber-100/70 px-2.5 py-1 rounded-lg">
+                                    🔒 កំពុងកំណត់ស្កេនដាច់ដោយឡែកសម្រាប់តែសិស្ស <strong>ថ្នាក់ ${scannerSelectedClass}</strong> ប៉ុណ្ណោះ!
+                                </p>
+                            ` : ''}
+                        </div>
+                            <select onchange="setScannerTargetClass(this.value)" ${(isScannerClassLocked || attendanceScannerTargetType === 'Teacher') ? 'disabled' : ''} class="w-full px-3.5 py-2.5 bg-white border border-primary-300 text-primary-900 rounded-xl text-xs font-bold outline-none">
+                                ${attendanceScannerTargetType === 'Teacher'
+                                    ? `<option value="TEACHER_MODE" selected>👩‍🏫 ស្កេនវត្តមានគ្រូបង្រៀន (មិនប្រើថ្នាក់សិស្ស)</option>`
+                                    : `<option value="AUTO" ${scannerSelectedClass==='AUTO'?'selected':''}>🔄 ស្វ័យប្រវត្តិតាមកាតសិស្ស</option>
+                                       ${availableRooms.map(r => `<option value="${r}" ${scannerSelectedClass===r?'selected':''}>🏫 ថ្នាក់ ${r}</option>`).join('')}`
+                                }
                             </select>
                         </div>
 
                         <!-- Scan Type & Check-in/Out -->
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-xs font-semibold text-slate-600 mb-1">ប្រភេទស្កេន *</label>
-                                <select id="attType" onchange="updateAttTargetList()" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700">
-                                    <option value="Student">👨‍🎓 ស្កេនវត្តមានសិស្ស (Student)</option>
-                                    <option value="Teacher">👩‍🏫 ស្កេនវត្តមានគ្រូបង្រៀន (Teacher)</option>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">ប្រភេទស្កេន (កំណត់សិទ្ធិដាច់ពីគ្នា) *</label>
+                                <select id="attType" onchange="updateAttTargetList()" class="w-full px-3.5 py-2.5 border rounded-xl text-xs font-bold ${attendanceScannerTargetType === 'Teacher' ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-blue-50 border-blue-300 text-blue-800'}">
+                                    <option value="Student" ${attendanceScannerTargetType === 'Student' ? 'selected' : ''}>👨‍🎓 ស្កេនវត្តមានសិស្ស (Student)</option>
+                                    <option value="Teacher" ${attendanceScannerTargetType === 'Teacher' ? 'selected' : ''}>👩‍🏫 ស្កេនវត្តមានគ្រូបង្រៀន (Teacher)</option>
                                 </select>
                             </div>
                             <div>
@@ -2531,7 +2562,7 @@
                         <!-- Manual ID Input -->
                         <form id="quickAttForm" class="space-y-3">
                             <div class="flex gap-2">
-                                <input type="text" id="attQrInput" placeholder="បញ្ចូលអត្តលេខសិស្ស ឬគ្រូដោយដៃ..." class="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-mono outline-none focus:ring-2 focus:ring-emerald-500">
+                                <input type="text" id="attQrInput" placeholder="${attendanceScannerTargetType === 'Teacher' ? 'បញ្ចូលអត្តលេខគ្រូ (ឧ. TCH001)...' : 'បញ្ចូលអត្តលេខសិស្ស (ឧ. STU0001)...'}" class="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-mono outline-none focus:ring-2 focus:ring-emerald-500">
                                 <button type="submit" class="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold shadow-md shrink-0">
                                     ស្កេនបញ្ជាក់
                                 </button>
@@ -2962,6 +2993,9 @@
         // ============================================================================
         // QR SCANNER & ATTENDANCE HELPER FUNCTIONS
         // ============================================================================
+        let lastScannedCode = '';
+        let lastScannedTimestamp = 0;
+
         function toggleLiveQrScanner() {
             if (html5QrScanner) {
                 isQrCameraUserDisabled = true;
@@ -2980,48 +3014,63 @@
             if (!viewport) return;
 
             if (typeof Html5Qrcode === 'undefined') {
-                showToast('បណ្ណាល័យកាមេរ៉ា QR មិនទាន់ផ្ទុករួចរាល់ទេ សូមសាកល្បងម្តងទៀត!', 'warning');
+                setTimeout(() => {
+                    if (currentTab === 'attendance' && !isQrCameraUserDisabled && !html5QrScanner) {
+                        startLiveQrScanner();
+                    }
+                }, 400);
                 return;
             }
 
-            stopLiveQrScanner(false);
+            if (html5QrScanner) return;
+
             if (placeholder) placeholder.classList.add('hidden');
             if (btn) {
                 btn.innerHTML = '<i class="fas fa-video-slash"></i> បិទកាមេរ៉ា';
                 btn.className = 'px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs';
             }
-            if (statusLbl) statusLbl.innerText = '🟢 កាមេរ៉ាកំពុងដំណើរការស្កេន QR Code...';
+            if (statusLbl) statusLbl.innerText = '🟢 កាមេរ៉ាបើកស្វ័យប្រវត្តិ (ស្កេនបន្តបន្ទាប់គ្នាជាប់ជានិច្ច រហូតដល់ចុចបិទ)';
 
             try {
                 html5QrScanner = new Html5Qrcode('qrReaderViewport');
                 html5QrScanner.start(
                     { facingMode: qrScannerFacingMode },
-                    { fps: 10, qrbox: { width: 200, height: 200 } },
+                    { fps: 12, qrbox: { width: 210, height: 210 } },
                     (decodedText) => {
-                        if (isScanPausedForPopup) return;
-                        isScanPausedForPopup = true;
-                        processAttendanceScan(decodedText.trim());
-                        setTimeout(() => { isScanPausedForPopup = false; }, scanDisplayDelaySeconds * 1000);
+                        const cleanCode = String(decodedText || '').trim();
+                        if (!cleanCode) return;
+                        const nowMs = Date.now();
+                        const cooldownMs = Math.max(1, Number(scanDisplayDelaySeconds || 2)) * 1000;
+                        // ការពារកុំឱ្យកាតសិស្សតែមួយស្កេនជាន់គ្នាផ្ទួនៗភ្លាមៗ ប៉ុន្តែសិស្សបន្ទាប់អាចស្កេនភ្លាមៗដោយកាមេរ៉ាមិនបិទឡើយ
+                        if (cleanCode.toLowerCase() === lastScannedCode.toLowerCase() && (nowMs - lastScannedTimestamp) < cooldownMs) {
+                            return;
+                        }
+                        lastScannedCode = cleanCode;
+                        lastScannedTimestamp = nowMs;
+                        processAttendanceScan(cleanCode, true);
                     },
                     () => {}
                 ).catch((err) => {
                     console.warn('Camera start warning:', err);
+                    html5QrScanner = null;
                     if (statusLbl) statusLbl.innerText = '⚠️ មិនអាចបើកកាមេរ៉ាបានទេ (សូមអនុញ្ញាត Camera ឬវាយអត្តលេខដោយដៃ)';
                     if (placeholder) placeholder.classList.remove('hidden');
                 });
             } catch (e) {
+                html5QrScanner = null;
                 console.error('QR init error:', e);
             }
         }
 
         function stopLiveQrScanner(updateUi = true) {
             if (html5QrScanner) {
+                const scannerToStop = html5QrScanner;
+                html5QrScanner = null;
                 try {
-                    html5QrScanner.stop().then(() => {
-                        html5QrScanner.clear();
+                    scannerToStop.stop().then(() => {
+                        scannerToStop.clear();
                     }).catch(() => {});
                 } catch (e) {}
-                html5QrScanner = null;
             }
             if (updateUi) {
                 const placeholder = document.getElementById('qrCameraClosedPlaceholder');
@@ -3037,20 +3086,29 @@
         }
 
         function updateScanSpeedStatusText() {
-            showToast(`បានកំណត់ល្បឿនស្កេន៖ ${scanDisplayDelaySeconds} វិនាទី`, 'info');
+            showToast(`បានកំណត់ចន្លោះពេលការពារស្កេនជាន់គ្នា៖ ${scanDisplayDelaySeconds} វិនាទី`, 'info');
         }
 
         function updateAttTargetList() {
             const typeEl = document.getElementById('attType');
-            const inpEl = document.getElementById('attQrInput');
-            if (typeEl && inpEl) {
-                inpEl.placeholder = typeEl.value === 'Teacher' ? 'បញ្ចូលអត្តលេខគ្រូ (ឧ. TCH001)...' : 'បញ្ចូលអត្តលេខសិស្ស (ឧ. STU0001)...';
+            if (typeEl) {
+                attendanceScannerTargetType = typeEl.value === 'Teacher' ? 'Teacher' : 'Student';
+                renderAttendance(document.getElementById('mainContent'), Boolean(html5QrScanner));
+                showToast(
+                    attendanceScannerTargetType === 'Teacher'
+                        ? '👩‍🏫 បានប្តូរទៅសិទ្ធិស្កេន៖ គ្រូបង្រៀនតែប៉ុណ្ណោះ (Teacher Only)'
+                        : '👨‍🎓 បានប្តូរទៅសិទ្ធិស្កេន៖ សិស្សតែប៉ុណ្ណោះ (Student Only)',
+                    'info'
+                );
             }
         }
 
         // Hook attendance form & auto-start QR scanner when entering attendance tab
         const _origRenderAttendance = renderAttendance;
-        renderAttendance = function(container) {
+        renderAttendance = function(container, preserveScanner = false) {
+            if (!preserveScanner && html5QrScanner) {
+                stopLiveQrScanner(false);
+            }
             _origRenderAttendance(container);
             updateLiveScheduleBanner();
             const qForm = document.getElementById('quickAttForm');
@@ -3059,22 +3117,39 @@
                     e.preventDefault();
                     const val = document.getElementById('attQrInput').value.trim();
                     if (!val) return;
-                    processAttendanceScan(val);
+                    processAttendanceScan(val, Boolean(html5QrScanner));
                     document.getElementById('attQrInput').value = '';
                 };
             }
             if (!isQrCameraUserDisabled) {
-                setTimeout(() => {
-                    if (currentTab === 'attendance' && !isQrCameraUserDisabled && !html5QrScanner) {
-                        startLiveQrScanner();
+                if (html5QrScanner) {
+                    const placeholder = document.getElementById('qrCameraClosedPlaceholder');
+                    const btn = document.getElementById('btnToggleQrCam');
+                    const statusLbl = document.getElementById('qrCamStatusLabel');
+                    if (placeholder) placeholder.classList.add('hidden');
+                    if (btn) {
+                        btn.innerHTML = '<i class="fas fa-video-slash"></i> បិទកាមេរ៉ា';
+                        btn.className = 'px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs';
                     }
-                }, 250);
+                    if (statusLbl) statusLbl.innerText = '🟢 កាមេរ៉ាបើកស្វ័យប្រវត្តិ (ស្កេនបន្តបន្ទាប់គ្នាជាប់ជានិច្ច រហូតដល់ចុចបិទ)';
+                } else {
+                    setTimeout(() => {
+                        if (currentTab === 'attendance' && !isQrCameraUserDisabled && !html5QrScanner) {
+                            startLiveQrScanner();
+                        }
+                    }, 150);
+                }
             }
         };
 
-        async function processAttendanceScan(rawCode) {
+        async function processAttendanceScan(rawCode, keepCameraAlive = false) {
             if (!rawCode) return;
-            const code = rawCode.trim();
+            const rawTrimmed = rawCode.trim();
+            // គាំទ្រទាំងទម្រង់ STU0001 និង STU0001|៧ក
+            const [parsedIdPart, parsedRoomPart] = rawTrimmed.split('|').map(x => (x || '').trim());
+            const code = parsedIdPart || rawTrimmed;
+
+            const allowedType = (document.getElementById('attType')?.value || attendanceScannerTargetType || 'Student');
             const stu = (db.students || []).find(s => String(s.id).toLowerCase() === code.toLowerCase());
             const tch = (db.teachers || []).find(t => String(t.id).toLowerCase() === code.toLowerCase());
 
@@ -3083,12 +3158,37 @@
                 return;
             }
 
+            // ត្រួតពិនិត្យសិទ្ធិការស្កេន QR Code ដាច់ដោយឡែកពីគ្នារវាង សិស្ស និង គ្រូបង្រៀន
+            if (allowedType === 'Student' && !stu) {
+                showToast(`⛔ គ្មានសិទ្ធិស្កេន! ប្រព័ន្ធកំពុងស្ថិតក្នុងរបៀប "ស្កេនវត្តមានសិស្ស" មិនអនុញ្ញាតឱ្យស្កេនកាតគ្រូ (${tch.nameKh} - ${tch.id}) ឡើយ!`, 'error');
+                return;
+            }
+            if (allowedType === 'Teacher' && !tch) {
+                showToast(`⛔ គ្មានសិទ្ធិស្កេន! ប្រព័ន្ធកំពុងស្ថិតក្នុងរបៀប "ស្កេនវត្តមានគ្រូបង្រៀន" មិនអនុញ្ញាតឱ្យស្កេនកាតសិស្ស (${stu.nameKh} - ${stu.id}) ឡើយ!`, 'error');
+                return;
+            }
+
+            // កំណត់កាតស្កេនសិស្សដាច់ដោយឡែកពីគ្នារវាងថ្នាក់នីមួយៗ
+            if (allowedType === 'Student' && stu) {
+                const studentActualRoom = (stu.room || '').trim();
+                if (parsedRoomPart && studentActualRoom && parsedRoomPart.toLowerCase() !== studentActualRoom.toLowerCase()) {
+                    showToast(`⛔ កាត QR មិនត្រឹមត្រូវតាមថ្នាក់បច្ចុប្បន្ន! កាតសរសេរថ្នាក់ "${parsedRoomPart}" តែសិស្ស ${stu.nameKh} នៅថ្នាក់ "${studentActualRoom}"!`, 'error');
+                    return;
+                }
+                if (scannerSelectedClass && scannerSelectedClass !== 'AUTO' && scannerSelectedClass !== 'TEACHER_MODE') {
+                    if (studentActualRoom.toLowerCase() !== scannerSelectedClass.trim().toLowerCase()) {
+                        showToast(`⛔ ខុសថ្នាក់រៀន! ឧបករណ៍នេះកំណត់ស្កេនតែសិស្ស "ថ្នាក់ ${scannerSelectedClass}" ប៉ុណ្ណោះ (សិស្ស ${stu.nameKh} នៅថ្នាក់ "${studentActualRoom || 'គ្មានថ្នាក់'}")!`, 'error');
+                        return;
+                    }
+                }
+            }
+
             const nowObj = new Date();
             const dateStr = nowObj.toISOString().split('T')[0];
             const timeStr = nowObj.toLocaleTimeString('km-KH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            const targetType = stu ? 'Student' : 'Teacher';
-            const targetObj = stu || tch;
-            const roomName = stu ? (scannerSelectedClass !== 'AUTO' ? scannerSelectedClass : (stu.room || '-')) : (tch.homeroom || '-');
+            const targetType = allowedType;
+            const targetObj = targetType === 'Student' ? stu : tch;
+            const roomName = targetType === 'Student' ? (stu.room || (scannerSelectedClass !== 'AUTO' ? scannerSelectedClass : '-')) : (tch.homeroom || '-');
             const schedInfo = getActiveScheduleForRoom(roomName, nowObj);
 
             const rec = {
@@ -3106,8 +3206,24 @@
 
             db.attendance.unshift(rec);
             saveDB();
-            renderAttendance(document.getElementById('mainContent'));
-            showToast(`✅ ${rec.targetName} (${rec.targetId}) - ${rec.status} [${rec.mode}]`, 'success');
+
+            // បើកាមេរ៉ាកំពុងបើកស្កេនបន្តបន្ទាប់ មិនត្រូវបំផ្លាញ DOM របស់កាមេរ៉ាឡើយ ដើម្បីឱ្យសិស្សបន្ទាប់ស្កេនបានភ្លាមៗ
+            if (keepCameraAlive && html5QrScanner) {
+                const viewport = document.getElementById('qrReaderViewport');
+                const videoNode = viewport ? viewport.querySelector('video') : null;
+                const savedChildren = viewport ? Array.from(viewport.childNodes) : [];
+                renderAttendance(document.getElementById('mainContent'), true);
+                const newViewport = document.getElementById('qrReaderViewport');
+                if (newViewport && savedChildren.length > 0) {
+                    newViewport.innerHTML = '';
+                    savedChildren.forEach(node => newViewport.appendChild(node));
+                    if (videoNode && videoNode.paused) videoNode.play().catch(() => {});
+                }
+            } else {
+                renderAttendance(document.getElementById('mainContent'));
+            }
+
+            showScanResultPopup(rec, targetObj);
 
             // Telegram notification
             if (targetType === 'Student') {
@@ -3120,6 +3236,91 @@
                 const msg = `📋 <b>ដំណឹងវត្តមានគ្រូបង្រៀន</b>\n👩‍🏫 គ្រូ៖ <b>${rec.targetName}</b> (${rec.targetId})\n📌 ស្ថានភាព៖ <b>${rec.status}</b> (${rec.mode})\n🕒 ម៉ោង៖ ${rec.time} (${rec.date})`;
                 sendTelegramMessage(db.settings.teacherTgBotToken, db.settings.teacherTgChatId, msg);
             }
+        }
+
+        let scanResultAutoCloseTimer = null;
+
+        function showScanResultPopup(rec, targetObj) {
+            if (scanResultAutoCloseTimer) {
+                clearTimeout(scanResultAutoCloseTimer);
+                scanResultAutoCloseTimer = null;
+            }
+            const isTeacher = rec.targetType === 'Teacher';
+            const avatarHTML = (!isTeacher && targetObj && targetObj.photo)
+                ? `<img src="${targetObj.photo}" alt="${rec.targetName}" class="w-24 h-24 rounded-full object-cover border-4 border-white shadow-lg mx-auto bg-white">`
+                : `<div class="w-24 h-24 rounded-full bg-white text-[#0b6e4f] flex items-center justify-center text-4xl shadow-lg mx-auto">
+                        <i class="fas ${isTeacher ? 'fa-chalkboard-teacher' : 'fa-user-graduate'}"></i>
+                   </div>`;
+
+            const roomDisplay = rec.room && rec.room !== '-' ? `ថ្នាក់ទី ${rec.room}` : (isTeacher ? 'គ្រូបង្រៀន' : 'ទូទៅ');
+
+            openModal('លទ្ធផលស្កេនវត្តមាន (Scan Result)', `
+                <div class="bg-[#0b6e4f] text-white rounded-3xl p-6 text-center space-y-4 shadow-xl mx-auto max-w-sm">
+                    <!-- សញ្ញាគ្រីសពណ៌បៃតង -->
+                    <div class="w-12 h-12 rounded-full bg-white text-[#0b6e4f] flex items-center justify-center text-xl mx-auto shadow-md">
+                        <i class="fas fa-check"></i>
+                    </div>
+
+                    <!-- រូបតំណាង ឬរូបថតសិស្ស -->
+                    <div class="pt-1">
+                        ${avatarHTML}
+                    </div>
+
+                    <!-- ឈ្មោះ និងអត្តលេខ -->
+                    <div class="space-y-1">
+                        <h3 class="text-xl font-bold tracking-wide text-white leading-snug">${rec.targetName} (${rec.targetId})</h3>
+                        <p class="text-sm font-medium text-emerald-100 flex items-center justify-center gap-1.5">
+                            <i class="fas fa-school text-xs"></i>
+                            <span>${roomDisplay}</span>
+                        </p>
+                    </div>
+
+                    <!-- ប្រអប់ព័ត៌មានលម្អិត -->
+                    <div class="bg-white/10 border border-white/15 rounded-2xl p-4 text-left text-sm space-y-2 backdrop-blur-xs">
+                        <p class="flex items-center gap-2.5">
+                            <i class="fas fa-book w-4 text-center text-emerald-200"></i>
+                            <span class="text-emerald-100">មុខវិជ្ជា៖</span>
+                            <strong class="text-white">${rec.subject || 'វត្តមានប្រចាំថ្ងៃ'}</strong>
+                        </p>
+                        <p class="flex items-center gap-2.5">
+                            <i class="fas fa-chart-bar w-4 text-center text-emerald-200"></i>
+                            <span class="text-emerald-100">ស្ថានភាព៖</span>
+                            <strong class="text-white">${rec.status}</strong>
+                        </p>
+                        <p class="flex items-center gap-2.5">
+                            <i class="fas fa-calendar-alt w-4 text-center text-emerald-200"></i>
+                            <span class="text-emerald-100">កាលបរិច្ឆេទ៖</span>
+                            <strong class="text-white font-mono">${rec.date}</strong>
+                        </p>
+                    </div>
+
+                    <!-- ប្រអប់ម៉ោង -->
+                    <div class="inline-block px-6 py-2 bg-white/15 rounded-full font-mono text-base font-bold tracking-wider text-white shadow-inner">
+                        ${rec.time}
+                    </div>
+
+                    <!-- ប៊ូតុង បិទ (OK) -->
+                    <div class="pt-1">
+                        <button type="button" onclick="closeScanResultPopup()" class="w-full py-3 bg-white hover:bg-emerald-50 text-[#0b6e4f] font-bold text-base rounded-2xl shadow-md transition active:scale-[0.98]">
+                            បិទ (OK)
+                        </button>
+                    </div>
+                </div>
+            `);
+
+            // បិទផ្ទាំងលទ្ធផលដោយស្វ័យប្រវត្តិតាមល្បឿនស្កេនដែលបានជ្រើសរើស ដើម្បីត្រៀមសម្រាប់សិស្សបន្ទាប់
+            const autoCloseMs = Math.max(1, Number(scanDisplayDelaySeconds || 2)) * 1000;
+            scanResultAutoCloseTimer = setTimeout(() => {
+                closeScanResultPopup();
+            }, autoCloseMs);
+        }
+
+        function closeScanResultPopup() {
+            if (scanResultAutoCloseTimer) {
+                clearTimeout(scanResultAutoCloseTimer);
+                scanResultAutoCloseTimer = null;
+            }
+            closeModal();
         }
 
         function openEditAttendanceModal(attId) {
@@ -3161,6 +3362,17 @@
         // ============================================================================
         function renderSubjectsAndSchedule(container) {
             const daysList = ['ច័ន្ទ (Monday)', 'អង្គារ (Tuesday)', 'ពុធ (Wednesday)', 'ព្រហស្បតិ៍ (Thursday)', 'សុក្រ (Friday)', 'សៅរ៍ (Saturday)'];
+            const levelClasses = (db.classes || []).filter(c => isItemInActiveLevel(c));
+            const availableRooms = [...new Set([
+                ...levelClasses.map(c => c.room),
+                ...(db.scheduleRows || []).map(r => r.room).filter(r => r && r !== '-')
+            ])];
+
+            const filteredScheduleRows = (db.scheduleRows || []).filter(row => {
+                if (timetableRoomFilter === 'ALL') return true;
+                return (row.room || '-') === timetableRoomFilter || (row.room || '-') === '-';
+            });
+
             container.innerHTML = `
                 <div class="space-y-6">
                     <!-- Subjects List -->
@@ -3186,7 +3398,13 @@
                     <!-- Timetable Grid -->
                     <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 space-y-4">
                         <div class="flex flex-wrap justify-between items-center gap-2">
-                            <h3 class="font-bold text-slate-800 text-base">កាលវិភាគសិក្សាប្រចាំសប្តាហ៍</h3>
+                            <div class="flex flex-wrap items-center gap-2.5">
+                                <h3 class="font-bold text-slate-800 text-base">កាលវិភាគសិក្សាប្រចាំសប្តាហ៍</h3>
+                                <select onchange="timetableRoomFilter=this.value; renderSubjectsAndSchedule(document.getElementById('mainContent'))" class="px-3 py-1.5 bg-primary-50 border border-primary-200 text-primary-800 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-primary-500">
+                                    <option value="ALL" ${timetableRoomFilter === 'ALL' ? 'selected' : ''}>🏫 គ្រប់ថ្នាក់ទាំងអស់</option>
+                                    ${availableRooms.map(r => `<option value="${r}" ${timetableRoomFilter === r ? 'selected' : ''}>ថ្នាក់ ${r}</option>`).join('')}
+                                </select>
+                            </div>
                             <button onclick="openScheduleRowModal()" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold">+ បន្ថែមម៉ោងសិក្សា</button>
                         </div>
                         <div class="overflow-x-auto border rounded-xl">
@@ -3196,17 +3414,19 @@
                                         <th class="py-2.5 px-3">វេន / ម៉ោងសិក្សា</th>
                                         <th class="py-2.5 px-3">ថ្នាក់</th>
                                         ${daysList.map(d => `<th class="py-2.5 px-3">${d.split(' ')[0]}</th>`).join('')}
-                                        <th class="py-2.5 px-3 text-right">លុប</th>
+                                        <th class="py-2.5 px-3 text-right">សកម្មភាព</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y">
-                                    ${(db.scheduleRows || []).map(row => `
+                                    ${filteredScheduleRows.length === 0 ? `<tr><td colspan="9" class="py-6 text-center text-slate-400">មិនទាន់មានកាលវិភាគសម្រាប់ថ្នាក់នេះទេ</td></tr>` :
+                                    filteredScheduleRows.map(row => `
                                         <tr class="hover:bg-slate-50">
                                             <td class="py-2.5 px-3 font-bold">${row.session} <span class="block font-normal text-slate-500">${row.label}</span></td>
-                                            <td class="py-2.5 px-3 font-semibold">${row.room || '-'}</td>
+                                            <td class="py-2.5 px-3 font-semibold">${row.room && row.room !== '-' ? `ថ្នាក់ ${row.room}` : 'គ្រប់ថ្នាក់ (-)'}</td>
                                             ${daysList.map(d => `<td class="py-2.5 px-3">${(row.days && row.days[d]) || '-'}</td>`).join('')}
-                                            <td class="py-2.5 px-3 text-right">
-                                                <button onclick="deleteScheduleRow('${row.id}')" class="text-red-500 hover:bg-red-50 p-1.5 rounded"><i class="fas fa-trash"></i></button>
+                                            <td class="py-2.5 px-3 text-right whitespace-nowrap space-x-1">
+                                                <button onclick="openScheduleRowModal('${row.id}')" title="កែប្រែកាលវិភាគ" class="text-blue-600 hover:bg-blue-50 p-1.5 rounded"><i class="fas fa-edit"></i></button>
+                                                <button onclick="deleteScheduleRow('${row.id}')" title="លុប" class="text-red-500 hover:bg-red-50 p-1.5 rounded"><i class="fas fa-trash"></i></button>
                                             </td>
                                         </tr>
                                     `).join('')}
@@ -3245,40 +3465,77 @@
             saveDB(); renderSubjectsAndSchedule(document.getElementById('mainContent'));
         }
 
-        function openScheduleRowModal() {
+        function openScheduleRowModal(rowId = null) {
+            const row = rowId ? (db.scheduleRows || []).find(r => r.id === rowId) : null;
             const daysList = ['ច័ន្ទ (Monday)', 'អង្គារ (Tuesday)', 'ពុធ (Wednesday)', 'ព្រហស្បតិ៍ (Thursday)', 'សុក្រ (Friday)', 'សៅរ៍ (Saturday)'];
-            openModal('បន្ថែមម៉ោងក្នុងកាលវិភាគ', `
+            const levelClasses = (db.classes || []).filter(c => isItemInActiveLevel(c));
+            const availableRooms = [...new Set([
+                ...levelClasses.map(c => c.room),
+                ...(row && row.room && row.room !== '-' ? [row.room] : [])
+            ])];
+            const defaultRoom = row ? (row.room || '-') : (timetableRoomFilter !== 'ALL' ? timetableRoomFilter : '-');
+
+            openModal(row ? 'កែប្រែម៉ោងក្នុងកាលវិភាគ' : 'បន្ថែមម៉ោងក្នុងកាលវិភាគ', `
                 <form id="schedRowForm" class="space-y-3 text-xs">
                     <div class="grid grid-cols-3 gap-2">
-                        <div><label class="font-semibold">វេនសិក្សា</label><select id="srSession" class="w-full p-2 border rounded-xl"><option value="វេនព្រឹក">វេនព្រឹក</option><option value="វេនរសៀល">វេនរសៀល</option></select></div>
-                        <div><label class="font-semibold">ម៉ោងសិក្សា *</label><input type="text" id="srLabel" required placeholder="07:00 - 08:00" class="w-full p-2 border rounded-xl"></div>
-                        <div><label class="font-semibold">ថ្នាក់</label><input type="text" id="srRoom" placeholder="៧ក ឬ -" value="-" class="w-full p-2 border rounded-xl"></div>
+                        <div>
+                            <label class="font-semibold">វេនសិក្សា</label>
+                            <select id="srSession" class="w-full p-2 border rounded-xl">
+                                <option value="វេនព្រឹក" ${row?.session === 'វេនព្រឹក' ? 'selected' : ''}>វេនព្រឹក</option>
+                                <option value="វេនរសៀល" ${row?.session === 'វេនរសៀល' ? 'selected' : ''}>វេនរសៀល</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="font-semibold">ម៉ោងសិក្សា *</label>
+                            <input type="text" id="srLabel" required value="${row ? row.label : ''}" placeholder="07:00 - 08:00" class="w-full p-2 border rounded-xl">
+                        </div>
+                        <div>
+                            <label class="font-semibold">ជ្រើសរើសថ្នាក់</label>
+                            <select id="srRoom" class="w-full p-2 border rounded-xl font-bold text-primary-700">
+                                <option value="-" ${defaultRoom === '-' ? 'selected' : ''}>គ្រប់ថ្នាក់ (-)</option>
+                                ${availableRooms.map(r => `<option value="${r}" ${defaultRoom === r ? 'selected' : ''}>ថ្នាក់ ${r}</option>`).join('')}
+                            </select>
+                        </div>
                     </div>
                     <div class="grid grid-cols-2 gap-2">
-                        ${daysList.map((d, i) => `
-                            <div>
-                                <label class="font-semibold">${d}</label>
-                                <input type="text" id="srDay_${i}" placeholder="មុខវិជ្ជា..." class="w-full p-2 border rounded-xl">
-                            </div>
-                        `).join('')}
+                        ${daysList.map((d, i) => {
+                            const existingSub = row && row.days && row.days[d] && row.days[d] !== '-' ? row.days[d] : '';
+                            return `
+                                <div>
+                                    <label class="font-semibold">${d}</label>
+                                    <input type="text" id="srDay_${i}" value="${existingSub}" placeholder="មុខវិជ្ជា..." class="w-full p-2 border rounded-xl">
+                                </div>
+                            `;
+                        }).join('')}
                     </div>
-                    <button type="submit" class="w-full py-2.5 bg-emerald-600 text-white rounded-xl font-bold">រក្សាទុកកាលវិភាគ</button>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 bg-slate-100 rounded-xl font-medium">បោះបង់</button>
+                        <button type="submit" class="px-5 py-2 bg-emerald-600 text-white rounded-xl font-bold shadow-sm">${row ? 'រក្សាទុកការកែប្រែ' : 'រក្សាទុកកាលវិភាគ'}</button>
+                    </div>
                 </form>
             `);
             document.getElementById('schedRowForm').onsubmit = (e) => {
                 e.preventDefault();
-                const daysObj = {};
+                const daysObj = row && row.days ? { ...row.days } : {};
                 daysList.forEach((d, i) => { daysObj[d] = document.getElementById(`srDay_${i}`).value.trim() || '-'; });
-                db.scheduleRows.push({
-                    id: 'SGRID-' + Date.now().toString().slice(-4),
-                    session: document.getElementById('srSession').value,
-                    label: document.getElementById('srLabel').value.trim(),
-                    room: document.getElementById('srRoom').value.trim() || '-',
-                    days: daysObj,
-                    teachers: {}
-                });
+                if (row) {
+                    row.session = document.getElementById('srSession').value;
+                    row.label = document.getElementById('srLabel').value.trim();
+                    row.room = document.getElementById('srRoom').value.trim() || '-';
+                    row.days = daysObj;
+                    showToast('បានកែប្រែកាលវិភាគជោគជ័យ!', 'success');
+                } else {
+                    db.scheduleRows.push({
+                        id: 'SGRID-' + Date.now().toString().slice(-4),
+                        session: document.getElementById('srSession').value,
+                        label: document.getElementById('srLabel').value.trim(),
+                        room: document.getElementById('srRoom').value.trim() || '-',
+                        days: daysObj,
+                        teachers: {}
+                    });
+                    showToast('បានបន្ថែមកាលវិភាគថ្មីជោគជ័យ!', 'success');
+                }
                 saveDB(); closeModal(); renderSubjectsAndSchedule(document.getElementById('mainContent'));
-                showToast('បានបន្ថែមកាលវិភាគថ្មីជោគជ័យ!', 'success');
             };
         }
 
@@ -3345,110 +3602,772 @@
 
         function renderGrades(container) {
             const yearStudents = db.students.filter(s => (!s.year || s.year === db.settings.currentYear) && isItemInActiveLevel(s));
+            const levelClasses = db.classes.filter(c => isItemInActiveLevel(c));
+            const availableRooms = [...new Set([...levelClasses.map(c => c.room), ...yearStudents.map(s => s.room)])].filter(Boolean);
+
+            if (typeof window.gradeFilterMonth === 'undefined') {
+                window.gradeFilterMonth = new Date().toISOString().slice(0, 7);
+            }
+            if (typeof window.gradeExamTypeFilter === 'undefined') {
+                window.gradeExamTypeFilter = 'ALL';
+            }
+
+            const filteredGrades = (db.grades || []).filter(g => {
+                const stu = db.students.find(s => s.id === g.studentId);
+                if (stu && !isItemInActiveLevel(stu)) return false;
+                const matchRoom = gradeFilterRoom === 'ALL' || (stu && stu.room === gradeFilterRoom) || g.room === gradeFilterRoom;
+                const matchMonth = !window.gradeFilterMonth || (g.date && g.date.startsWith(window.gradeFilterMonth)) || (g.month && g.month === window.gradeFilterMonth);
+                const matchExam = window.gradeExamTypeFilter === 'ALL' || g.examType === window.gradeExamTypeFilter;
+                return matchRoom && matchMonth && matchExam;
+            });
+
+            // បង្កើតតារាងបូកសរុបពិន្ទុ មធ្យមភាគ និងចំណាត់ថ្នាក់ប្រចាំខែរបស់សិស្សម្នាក់ៗ
+            const rankingMap = {};
+            filteredGrades.forEach(g => {
+                const stu = db.students.find(s => s.id === g.studentId);
+                const sRoom = stu ? stu.room : (g.room || '-');
+                const sName = stu ? stu.nameKh : (g.studentName || g.studentId);
+                const sGender = stu ? stu.gender : '-';
+                if (!rankingMap[g.studentId]) {
+                    rankingMap[g.studentId] = {
+                        studentId: g.studentId,
+                        nameKh: sName,
+                        gender: sGender,
+                        room: sRoom,
+                        subjectsCount: 0,
+                        totalScore: 0,
+                        totalMaxScore: 0
+                    };
+                }
+                const subObj = (db.subjects || []).find(sb => sb.nameKh === g.subject);
+                const maxSc = Number(g.maxScore || subObj?.maxScore || 100);
+                rankingMap[g.studentId].subjectsCount += 1;
+                rankingMap[g.studentId].totalScore += Number(g.score || 0);
+                rankingMap[g.studentId].totalMaxScore += maxSc;
+            });
+
+            const rankedStudents = Object.values(rankingMap).map(item => {
+                // គណនាមធ្យមភាគលើមាត្រដ្ឋាន 100 ឬតាមចំនួនមុខវិជ្ជា
+                const avg = item.subjectsCount > 0 ? (item.totalScore / item.subjectsCount) : 0;
+                const pct = item.totalMaxScore > 0 ? (item.totalScore / item.totalMaxScore) * 100 : 0;
+                let mention = 'ខ្សោយ (F)';
+                let badgeClass = 'bg-red-50 text-red-600';
+                if (pct >= 85) { mention = 'ល្អប្រសើរ (A)'; badgeClass = 'bg-emerald-50 text-emerald-700'; }
+                else if (pct >= 75) { mention = 'ល្អណាស់ (B)'; badgeClass = 'bg-blue-50 text-blue-700'; }
+                else if (pct >= 65) { mention = 'ល្អ (C)'; badgeClass = 'bg-indigo-50 text-indigo-700'; }
+                else if (pct >= 50) { mention = 'មធ្យម (D/E)'; badgeClass = 'bg-amber-50 text-amber-700'; }
+                return { ...item, avg, pct, mention, badgeClass };
+            }).sort((a, b) => b.totalScore - a.totalScore);
+
+            // កំណត់ចំណាត់ថ្នាក់ (Rank) ដោយគិតលេខស្ទួនបើពិន្ទុស្មើគ្នា
+            rankedStudents.forEach((st, idx) => {
+                if (idx > 0 && st.totalScore === rankedStudents[idx - 1].totalScore) {
+                    st.rank = rankedStudents[idx - 1].rank;
+                } else {
+                    st.rank = idx + 1;
+                }
+            });
+
+            const uniqueExamTypes = [...new Set(['ប្រឡងប្រចាំខែ', 'ប្រឡងឆមាសទី១', 'ប្រឡងឆមាសទី២', ...(db.grades || []).map(g => g.examType).filter(Boolean)])];
+            const periodText = window.gradeFilterMonth ? `ប្រចាំខែ ${window.gradeFilterMonth}` : 'គ្រប់ខែទាំងអស់';
+
             container.innerHTML = `
-                <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 space-y-4">
-                    <div class="flex flex-wrap justify-between items-center gap-2">
-                        <h3 class="font-bold text-slate-800 text-base">ប្រព័ន្ធពិន្ទុ និងលទ្ធផលប្រឡង</h3>
-                        <button onclick="openGradeModal()" class="px-4 py-2 bg-primary-600 text-white rounded-xl text-xs font-bold">+ បញ្ចូលពិន្ទុសិស្ស</button>
-                    </div>
-                    <div class="overflow-x-auto border rounded-xl">
-                        <table class="w-full text-left text-xs">
-                            <thead class="bg-slate-50 border-b">
-                                <tr><th class="py-2.5 px-3">អត្តលេខ</th><th class="py-2.5 px-3">ឈ្មោះសិស្ស</th><th class="py-2.5 px-3">មុខវិជ្ជា</th><th class="py-2.5 px-3">ប្រភេទប្រឡង</th><th class="py-2.5 px-3">ពិន្ទុ</th><th class="py-2.5 px-3 text-right">លុប</th></tr>
-                            </thead>
-                            <tbody class="divide-y">
-                                ${(db.grades || []).length === 0 ? `<tr><td colspan="6" class="py-8 text-center text-slate-400">មិនទាន់មានទិន្នន័យពិន្ទុទេ (សិស្សក្នុងកម្រិតនេះ៖ ${yearStudents.length} នាក់)</td></tr>` :
-                                (db.grades || []).map(g => {
-                                    const stu = db.students.find(s => s.id === g.studentId);
-                                    return `
+                <div class="space-y-6">
+                    <!-- Header & Toolbar -->
+                    <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 space-y-4">
+                        <div class="flex flex-wrap justify-between items-center gap-3">
+                            <div>
+                                <h3 class="font-bold text-slate-800 text-base">ប្រព័ន្ធពិន្ទុ និងលទ្ធផលប្រឡង (${periodText})</h3>
+                                <p class="text-xs text-slate-500 mt-0.5">គណនាពិន្ទុសរុប មធ្យមភាគ និទ្ទេស ចំណាត់ថ្នាក់ប្រចាំខែ បោះពុម្ព និងទាញយក Excel</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="printMonthlyGradesReport()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5">
+                                    <i class="fas fa-print"></i> បោះពុម្ពរបាយការណ៍ប្រចាំខែ
+                                </button>
+                                <button onclick="exportMonthlyGradesCSV()" class="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                                    <i class="fas fa-file-excel"></i> ទាញយក Excel (CSV)
+                                </button>
+                                <button onclick="openGradeModal()" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5">
+                                    <i class="fas fa-plus"></i> បញ្ចូលពិន្ទុសិស្ស
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Filter Controls -->
+                        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <label class="font-bold text-slate-700">📅 ខែប្រឡង៖</label>
+                                <input type="month" value="${window.gradeFilterMonth}" onchange="window.gradeFilterMonth=this.value; renderGrades(document.getElementById('mainContent'))" class="px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-bold text-primary-700">
+                                <button type="button" onclick="window.gradeFilterMonth=''; renderGrades(document.getElementById('mainContent'))" class="px-2.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg font-semibold">គ្រប់ខែ</button>
+                                <select onchange="gradeFilterRoom=this.value; renderGrades(document.getElementById('mainContent'))" class="px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-bold">
+                                    <option value="ALL" ${gradeFilterRoom==='ALL'?'selected':''}>🏫 គ្រប់ថ្នាក់ទាំងអស់</option>
+                                    ${availableRooms.map(r => `<option value="${r}" ${gradeFilterRoom===r?'selected':''}>ថ្នាក់ ${r}</option>`).join('')}
+                                </select>
+                                <select onchange="window.gradeExamTypeFilter=this.value; renderGrades(document.getElementById('mainContent'))" class="px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-bold">
+                                    <option value="ALL" ${window.gradeExamTypeFilter==='ALL'?'selected':''}>គ្រប់ប្រភេទប្រឡង</option>
+                                    ${uniqueExamTypes.map(et => `<option value="${et}" ${window.gradeExamTypeFilter===et?'selected':''}>${et}</option>`).join('')}
+                                </select>
+                            </div>
+                            <span class="text-slate-600 font-semibold">សិស្សមានពិន្ទុ៖ <strong>${rankedStudents.length} នាក់</strong></span>
+                        </div>
+
+                        <!-- Monthly Ranking Summary Table -->
+                        <div class="space-y-2">
+                            <h4 class="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                                <i class="fas fa-trophy text-amber-500"></i> តារាងបូកសរុបលទ្ធផល និងចំណាត់ថ្នាក់ប្រចាំខែ
+                            </h4>
+                            <div class="overflow-x-auto border rounded-xl">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-primary-50/80 text-primary-950 border-b">
                                         <tr>
-                                            <td class="py-2.5 px-3 font-mono">${g.studentId}</td>
-                                            <td class="py-2.5 px-3 font-bold">${stu ? stu.nameKh : g.studentName || '-'}</td>
-                                            <td class="py-2.5 px-3">${g.subject}</td>
-                                            <td class="py-2.5 px-3">${g.examType}</td>
-                                            <td class="py-2.5 px-3 font-bold text-primary-700">${g.score}</td>
-                                            <td class="py-2.5 px-3 text-right"><button onclick="db.grades=db.grades.filter(x=>x.id!=='${g.id}'); saveDB(); renderGrades(document.getElementById('mainContent'))" class="text-red-500 p-1"><i class="fas fa-trash"></i></button></td>
+                                            <th class="py-2.5 px-3 text-center">ចំណាត់ថ្នាក់</th>
+                                            <th class="py-2.5 px-3">អត្តលេខ</th>
+                                            <th class="py-2.5 px-3">ឈ្មោះសិស្ស</th>
+                                            <th class="py-2.5 px-3 text-center">ភេទ</th>
+                                            <th class="py-2.5 px-3">ថ្នាក់</th>
+                                            <th class="py-2.5 px-3 text-center">ចំនួនមុខវិជ្ជា</th>
+                                            <th class="py-2.5 px-3 text-right">ពិន្ទុសរុប</th>
+                                            <th class="py-2.5 px-3 text-right">មធ្យមភាគ</th>
+                                            <th class="py-2.5 px-3 text-center">និទ្ទេស</th>
                                         </tr>
-                                    `;
-                                }).join('')}
-                            </tbody>
-                        </table>
+                                    </thead>
+                                    <tbody class="divide-y">
+                                        ${rankedStudents.length === 0 ? `<tr><td colspan="9" class="py-8 text-center text-slate-400">មិនទាន់មានទិន្នន័យពិន្ទុសម្រាប់${periodText}ទេ</td></tr>` :
+                                        rankedStudents.map(st => `
+                                            <tr class="hover:bg-slate-50">
+                                                <td class="py-2.5 px-3 text-center font-bold">
+                                                    <span class="px-2.5 py-0.5 rounded-full ${st.rank === 1 ? 'bg-amber-100 text-amber-800' : st.rank === 2 ? 'bg-slate-200 text-slate-800' : st.rank === 3 ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-700'}">
+                                                        លេខ ${st.rank}
+                                                    </span>
+                                                </td>
+                                                <td class="py-2.5 px-3 font-mono font-bold text-primary-700">${st.studentId}</td>
+                                                <td class="py-2.5 px-3 font-bold text-slate-800">${st.nameKh}</td>
+                                                <td class="py-2.5 px-3 text-center">${st.gender}</td>
+                                                <td class="py-2.5 px-3">ថ្នាក់ ${st.room}</td>
+                                                <td class="py-2.5 px-3 text-center">${st.subjectsCount}</td>
+                                                <td class="py-2.5 px-3 text-right font-bold text-slate-900">${st.totalScore.toFixed(1)}</td>
+                                                <td class="py-2.5 px-3 text-right font-bold text-primary-700">${st.avg.toFixed(2)}</td>
+                                                <td class="py-2.5 px-3 text-center"><span class="px-2 py-0.5 rounded font-bold ${st.badgeClass}">${st.mention}</span></td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Detailed Subject Scores Table -->
+                    <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 space-y-3">
+                        <h4 class="font-bold text-slate-800 text-xs">បញ្ជីពិន្ទុលម្អិតតាមមុខវិជ្ជានីមួយៗ (${filteredGrades.length} កំណត់ត្រា)</h4>
+                        <div class="overflow-x-auto border rounded-xl">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-50 border-b">
+                                    <tr>
+                                        <th class="py-2.5 px-3">កាលបរិច្ឆេទ / ខែ</th>
+                                        <th class="py-2.5 px-3">អត្តលេខ</th>
+                                        <th class="py-2.5 px-3">ឈ្មោះសិស្ស</th>
+                                        <th class="py-2.5 px-3">ថ្នាក់</th>
+                                        <th class="py-2.5 px-3">មុខវិជ្ជា</th>
+                                        <th class="py-2.5 px-3">ប្រភេទប្រឡង</th>
+                                        <th class="py-2.5 px-3 text-right">ពិន្ទុ</th>
+                                        <th class="py-2.5 px-3 text-right">លុប</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y">
+                                    ${filteredGrades.length === 0 ? `<tr><td colspan="8" class="py-6 text-center text-slate-400">មិនទាន់មានកំណត់ត្រាពិន្ទុលម្អិតទេ</td></tr>` :
+                                    filteredGrades.map(g => {
+                                        const stu = db.students.find(s => s.id === g.studentId);
+                                        return `
+                                            <tr class="hover:bg-slate-50">
+                                                <td class="py-2.5 px-3 font-mono">${g.date || g.month || '-'}</td>
+                                                <td class="py-2.5 px-3 font-mono">${g.studentId}</td>
+                                                <td class="py-2.5 px-3 font-bold">${stu ? stu.nameKh : g.studentName || '-'}</td>
+                                                <td class="py-2.5 px-3">${stu ? stu.room : g.room || '-'}</td>
+                                                <td class="py-2.5 px-3">${g.subject}</td>
+                                                <td class="py-2.5 px-3">${g.examType}</td>
+                                                <td class="py-2.5 px-3 text-right font-bold text-primary-700">${g.score}</td>
+                                                <td class="py-2.5 px-3 text-right"><button onclick="deleteGradeRecord('${g.id}')" class="text-red-500 hover:bg-red-50 p-1 rounded"><i class="fas fa-trash"></i></button></td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             `;
         }
 
+        function deleteGradeRecord(id) {
+            const g = (db.grades || []).find(x => x.id === id);
+            if (!g) return;
+            confirmDelete(`ពិន្ទុមុខវិជ្ជា ${g.subject} (${g.studentName || g.studentId})`, () => {
+                db.grades = (db.grades || []).filter(x => x.id !== id);
+                saveDB();
+                renderGrades(document.getElementById('mainContent'));
+                showToast('បានលុបកំណត់ត្រាពិន្ទុរួចរាល់', 'info');
+            });
+        }
+
         function openGradeModal() {
             const yearStudents = db.students.filter(s => (!s.year || s.year === db.settings.currentYear) && isItemInActiveLevel(s));
+            const defaultMonth = window.gradeFilterMonth || new Date().toISOString().slice(0, 7);
+            const todayStr = new Date().toISOString().split('T')[0];
             openModal('បញ្ចូលពិន្ទុសិស្ស', `
                 <form id="gradeForm" class="space-y-3 text-xs">
                     <div>
                         <label class="font-semibold">ជ្រើសរើសសិស្ស *</label>
-                        <select id="grdStu" required class="w-full p-2 border rounded-xl">
+                        <select id="grdStu" required class="w-full p-2.5 border rounded-xl">
                             ${yearStudents.map(s => `<option value="${s.id}">${s.id} - ${s.nameKh} (ថ្នាក់ ${s.room})</option>`).join('')}
                         </select>
                     </div>
-                    <div>
-                        <label class="font-semibold">មុខវិជ្ជា *</label>
-                        <select id="grdSub" class="w-full p-2 border rounded-xl">
-                            ${db.subjects.map(sub => `<option value="${sub.nameKh}">${sub.nameKh}</option>`).join('')}
-                        </select>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="font-semibold">មុខវិជ្ជា *</label>
+                            <select id="grdSub" class="w-full p-2.5 border rounded-xl">
+                                ${db.subjects.map(sub => `<option value="${sub.nameKh}">${sub.nameKh} (ពេញ ${sub.maxScore})</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="font-semibold">ប្រភេទប្រឡង</label>
+                            <input type="text" id="grdType" value="ប្រឡងប្រចាំខែ" class="w-full p-2.5 border rounded-xl">
+                        </div>
                     </div>
-                    <div>
-                        <label class="font-semibold">ប្រភេទប្រឡង</label>
-                        <input type="text" id="grdType" value="ប្រឡងប្រចាំខែ" class="w-full p-2 border rounded-xl">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="font-semibold">ប្រចាំខែ *</label>
+                            <input type="month" id="grdMonth" required value="${defaultMonth}" class="w-full p-2.5 border rounded-xl font-bold">
+                        </div>
+                        <div>
+                            <label class="font-semibold">ពិន្ទុទទួលបាន *</label>
+                            <input type="number" step="0.5" id="grdScore" required class="w-full p-2.5 border rounded-xl font-bold text-sm">
+                        </div>
                     </div>
-                    <div>
-                        <label class="font-semibold">ពិន្ទុទទួលបាន *</label>
-                        <input type="number" step="0.5" id="grdScore" required class="w-full p-2 border rounded-xl">
-                    </div>
-                    <button type="submit" class="w-full py-2.5 bg-primary-600 text-white rounded-xl font-bold">រក្សាទុកពិន្ទុ</button>
+                    <button type="submit" class="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold shadow-md">រក្សាទុកពិន្ទុ</button>
                 </form>
             `);
             document.getElementById('gradeForm').onsubmit = (e) => {
                 e.preventDefault();
                 const stuId = document.getElementById('grdStu').value;
                 const stu = db.students.find(s => s.id === stuId);
+                const subName = document.getElementById('grdSub').value;
+                const subObj = (db.subjects || []).find(sb => sb.nameKh === subName);
+                const selectedMonth = document.getElementById('grdMonth').value || defaultMonth;
+                const dateVal = todayStr.startsWith(selectedMonth) ? todayStr : `${selectedMonth}-15`;
+
                 db.grades.unshift({
                     id: 'GRD-' + Date.now().toString().slice(-5),
                     studentId: stuId,
                     studentName: stu ? stu.nameKh : '',
-                    subject: document.getElementById('grdSub').value,
-                    examType: document.getElementById('grdType').value,
+                    room: stu ? stu.room : '',
+                    subject: subName,
+                    maxScore: subObj ? Number(subObj.maxScore) : 100,
+                    examType: document.getElementById('grdType').value.trim() || 'ប្រឡងប្រចាំខែ',
                     score: Number(document.getElementById('grdScore').value),
-                    date: new Date().toISOString().split('T')[0]
+                    month: selectedMonth,
+                    date: dateVal
                 });
+                window.gradeFilterMonth = selectedMonth;
                 saveDB(); closeModal(); renderGrades(document.getElementById('mainContent'));
                 showToast('បានរក្សាទុកពិន្ទុជោគជ័យ!', 'success');
             };
         }
 
-        function renderFinance(container) {
-            const income = (db.finance || []).filter(f => f.type === 'Income').reduce((sum, f) => sum + Number(f.amount || 0), 0);
-            const expense = (db.finance || []).filter(f => f.type === 'Expense').reduce((sum, f) => sum + Number(f.amount || 0), 0);
-            container.innerHTML = `
-                <div class="space-y-4">
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div class="bg-white p-4 rounded-2xl border border-emerald-100"><p class="text-xs text-slate-500">ចំណូលសរុប</p><h3 class="text-xl font-bold text-emerald-600">$${income.toFixed(2)}</h3></div>
-                        <div class="bg-white p-4 rounded-2xl border border-red-100"><p class="text-xs text-slate-500">ចំណាយសរុប</p><h3 class="text-xl font-bold text-red-600">$${expense.toFixed(2)}</h3></div>
-                        <div class="bg-white p-4 rounded-2xl border border-blue-100"><p class="text-xs text-slate-500">សមតុល្យសាច់ប្រាក់</p><h3 class="text-xl font-bold text-primary-700">$${(income - expense).toFixed(2)}</h3></div>
+        function getComputedMonthlyRankingData() {
+            const filteredGrades = (db.grades || []).filter(g => {
+                const stu = db.students.find(s => s.id === g.studentId);
+                if (stu && !isItemInActiveLevel(stu)) return false;
+                const matchRoom = gradeFilterRoom === 'ALL' || (stu && stu.room === gradeFilterRoom) || g.room === gradeFilterRoom;
+                const matchMonth = !window.gradeFilterMonth || (g.date && g.date.startsWith(window.gradeFilterMonth)) || (g.month && g.month === window.gradeFilterMonth);
+                const matchExam = window.gradeExamTypeFilter === 'ALL' || g.examType === window.gradeExamTypeFilter;
+                return matchRoom && matchMonth && matchExam;
+            });
+
+            const rankingMap = {};
+            filteredGrades.forEach(g => {
+                const stu = db.students.find(s => s.id === g.studentId);
+                if (!rankingMap[g.studentId]) {
+                    rankingMap[g.studentId] = {
+                        studentId: g.studentId,
+                        nameKh: stu ? stu.nameKh : (g.studentName || g.studentId),
+                        gender: stu ? stu.gender : '-',
+                        room: stu ? stu.room : (g.room || '-'),
+                        subjectsCount: 0,
+                        totalScore: 0,
+                        totalMaxScore: 0
+                    };
+                }
+                const subObj = (db.subjects || []).find(sb => sb.nameKh === g.subject);
+                const maxSc = Number(g.maxScore || subObj?.maxScore || 100);
+                rankingMap[g.studentId].subjectsCount += 1;
+                rankingMap[g.studentId].totalScore += Number(g.score || 0);
+                rankingMap[g.studentId].totalMaxScore += maxSc;
+            });
+
+            const list = Object.values(rankingMap).map(item => {
+                const avg = item.subjectsCount > 0 ? (item.totalScore / item.subjectsCount) : 0;
+                const pct = item.totalMaxScore > 0 ? (item.totalScore / item.totalMaxScore) * 100 : 0;
+                let mention = 'ខ្សោយ (F)';
+                if (pct >= 85) mention = 'ល្អប្រសើរ (A)';
+                else if (pct >= 75) mention = 'ល្អណាស់ (B)';
+                else if (pct >= 65) mention = 'ល្អ (C)';
+                else if (pct >= 50) mention = 'មធ្យម (D/E)';
+                return { ...item, avg, pct, mention };
+            }).sort((a, b) => b.totalScore - a.totalScore);
+
+            list.forEach((st, idx) => {
+                st.rank = (idx > 0 && st.totalScore === list[idx - 1].totalScore) ? list[idx - 1].rank : (idx + 1);
+            });
+            return list;
+        }
+
+        function exportMonthlyGradesCSV() {
+            const ranked = getComputedMonthlyRankingData();
+            if (ranked.length === 0) {
+                showToast('មិនមានទិន្នន័យពិន្ទុសម្រាប់ទាញយកទេ!', 'warning');
+                return;
+            }
+            const rows = [
+                ['ចំណាត់ថ្នាក់', 'អត្តលេខ', 'ឈ្មោះសិស្ស', 'ភេទ', 'ថ្នាក់', 'ចំនួនមុខវិជ្ជា', 'ពិន្ទុសរុប', 'មធ្យមភាគ', 'និទ្ទេស'],
+                ...ranked.map(st => [st.rank, st.studentId, st.nameKh, st.gender, st.room, st.subjectsCount, st.totalScore.toFixed(1), st.avg.toFixed(2), st.mention])
+            ];
+            exportToCSV(`Monthly_Exam_Report_${window.gradeFilterMonth || 'All'}_${gradeFilterRoom}.csv`, rows);
+        }
+
+        function printMonthlyGradesReport() {
+            const ranked = getComputedMonthlyRankingData();
+            const periodLabel = window.gradeFilterMonth ? `ប្រចាំខែ ${window.gradeFilterMonth}` : 'គ្រប់ខែទាំងអស់';
+            const roomLabel = gradeFilterRoom === 'ALL' ? 'គ្រប់ថ្នាក់' : `ថ្នាក់ ${gradeFilterRoom}`;
+            const examLabel = window.gradeExamTypeFilter === 'ALL' ? 'គ្រប់ប្រភេទប្រឡង' : window.gradeExamTypeFilter;
+
+            printHTML(`
+                <div class="p-6 text-slate-900 space-y-4 font-sans">
+                    <div class="text-center border-b-2 border-slate-800 pb-3">
+                        <p class="text-xs font-bold">ព្រះរាជាណាចក្រកម្ពុជា • ជាតិ សាសនា ព្រះមហាក្សត្រ</p>
+                        <h2 class="text-xl font-bold mt-1">${db.settings.schoolNameKh}</h2>
+                        <h3 class="text-base font-bold text-primary-800 mt-1">តារាងចំណាត់ថ្នាក់ និងរបាយការណ៍លទ្ធផលប្រឡង${periodLabel}</h3>
+                        <p class="text-xs text-slate-600 mt-0.5">ឆ្នាំសិក្សា ${db.settings.currentYear} • ${roomLabel} • ${examLabel}</p>
                     </div>
-                    <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 space-y-4">
-                        <div class="flex justify-between items-center">
-                            <h3 class="font-bold text-slate-800 text-base">កំណត់ត្រាចំណូល និងចំណាយ</h3>
-                            <button onclick="openFinanceModal()" class="px-4 py-2 bg-primary-600 text-white rounded-xl text-xs font-bold">+ កត់ត្រាប្រតិបត្តិការ</button>
+
+                    <table class="w-full border-collapse border border-slate-400 text-xs">
+                        <thead>
+                            <tr class="bg-slate-200">
+                                <th class="border border-slate-400 py-2 px-2 text-center">ចំណាត់ថ្នាក់</th>
+                                <th class="border border-slate-400 py-2 px-2 text-left">អត្តលេខ</th>
+                                <th class="border border-slate-400 py-2 px-2 text-left">ឈ្មោះសិស្ស</th>
+                                <th class="border border-slate-400 py-2 px-2 text-center">ភេទ</th>
+                                <th class="border border-slate-400 py-2 px-2 text-center">ថ្នាក់</th>
+                                <th class="border border-slate-400 py-2 px-2 text-center">មុខវិជ្ជា</th>
+                                <th class="border border-slate-400 py-2 px-2 text-right">ពិន្ទុសរុប</th>
+                                <th class="border border-slate-400 py-2 px-2 text-right">មធ្យមភាគ</th>
+                                <th class="border border-slate-400 py-2 px-2 text-center">និទ្ទេស</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${ranked.length === 0 ? `<tr><td colspan="9" class="border border-slate-400 py-4 text-center">មិនទាន់មានទិន្នន័យពិន្ទុទេ</td></tr>` :
+                            ranked.map(st => `
+                                <tr>
+                                    <td class="border border-slate-400 py-1.5 px-2 text-center font-bold">${st.rank}</td>
+                                    <td class="border border-slate-400 py-1.5 px-2 font-mono">${st.studentId}</td>
+                                    <td class="border border-slate-400 py-1.5 px-2 font-bold">${st.nameKh}</td>
+                                    <td class="border border-slate-400 py-1.5 px-2 text-center">${st.gender}</td>
+                                    <td class="border border-slate-400 py-1.5 px-2 text-center">${st.room}</td>
+                                    <td class="border border-slate-400 py-1.5 px-2 text-center">${st.subjectsCount}</td>
+                                    <td class="border border-slate-400 py-1.5 px-2 text-right font-bold">${st.totalScore.toFixed(1)}</td>
+                                    <td class="border border-slate-400 py-1.5 px-2 text-right font-bold">${st.avg.toFixed(2)}</td>
+                                    <td class="border border-slate-400 py-1.5 px-2 text-center font-semibold">${st.mention}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+
+                    <div class="grid grid-cols-2 gap-8 pt-8 text-center text-xs">
+                        <div>
+                            <p>បានឃើញ និងឯកភាព</p>
+                            <p class="font-bold mt-1">នាយកសាលា</p>
                         </div>
+                        <div>
+                            <p>ថ្ងៃទី........ ខែ........ ឆ្នាំ២០២...</p>
+                            <p class="font-bold mt-1">គ្រូបន្ទុកថ្នាក់ / អ្នករៀបចំរបាយការណ៍</p>
+                        </div>
+                    </div>
+                </div>
+            `);
+        }
+
+        // ============================================================================
+        // MODULE 7: FINANCE (ចំណូល និងចំណាយ ជាប្រាក់រៀល ៛ និងរបាយការណ៍ប្រចាំខែ)
+        // ============================================================================
+        let financeMonthFilter = new Date().toISOString().slice(0, 7);
+        let financeTypeFilter = 'ALL';
+
+        function renderFinance(container) {
+            const rate = Number(db.settings.exchangeRate) || 4100;
+            const filtered = (db.finance || []).filter(f => {
+                const matchMonth = !financeMonthFilter || (f.date && f.date.startsWith(financeMonthFilter));
+                const matchType = financeTypeFilter === 'ALL' || f.type === financeTypeFilter;
+                return matchMonth && matchType;
+            });
+
+            let totalIncomeKhr = 0;
+            let totalExpenseKhr = 0;
+            filtered.forEach(f => {
+                const khr = f.currency === 'KHR' ? Number(f.amountKhr || 0) : Math.round(Number(f.amountUsd ?? f.amount ?? 0) * rate);
+                if (f.type === 'Income') totalIncomeKhr += khr;
+                else totalExpenseKhr += khr;
+            });
+            const balanceKhr = totalIncomeKhr - totalExpenseKhr;
+            const periodLabel = financeMonthFilter ? `ប្រចាំខែ ${financeMonthFilter}` : 'គ្រប់ខែទាំងអស់';
+
+            container.innerHTML = `
+                <div class="space-y-6">
+                    <!-- Header & Actions -->
+                    <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 flex flex-wrap justify-between items-center gap-3">
+                        <div>
+                            <h3 class="font-bold text-slate-800 text-base">គ្រប់គ្រងចំណូល និងចំណាយ (${periodLabel})</h3>
+                            <p class="text-xs text-slate-500 mt-0.5">កត់ត្រាជាប្រាក់រៀល (៛) ឬដុល្លារ ($) • អត្រាប្តូរប្រាក់៖ 1$ = ${rate.toLocaleString()} ៛</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="printMonthlyFinanceReport()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5">
+                                <i class="fas fa-print"></i> បោះពុម្ពរបាយការណ៍ប្រចាំខែ
+                            </button>
+                            <button onclick="exportFinanceCSV()" class="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                                <i class="fas fa-file-excel"></i> Excel
+                            </button>
+                            <button onclick="openFinanceModal('Income')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs">+ កត់ត្រាចំណូល</button>
+                            <button onclick="openFinanceModal('Expense')" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-xs">+ កត់ត្រាចំណាយ</button>
+                        </div>
+                    </div>
+
+                    <!-- Monthly Summary KPI Cards -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div class="bg-white p-5 rounded-2xl shadow-xs border border-emerald-100">
+                            <p class="text-xs text-slate-500 font-semibold">ចំណូលសរុប (${periodLabel})</p>
+                            <h4 class="text-xl font-bold text-emerald-700 mt-1">+${totalIncomeKhr.toLocaleString()} ៛</h4>
+                            <p class="text-[11px] text-slate-400 mt-0.5">≈ $${(totalIncomeKhr / rate).toFixed(2)}</p>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl shadow-xs border border-red-100">
+                            <p class="text-xs text-slate-500 font-semibold">ចំណាយសរុប (${periodLabel})</p>
+                            <h4 class="text-xl font-bold text-red-600 mt-1">-${totalExpenseKhr.toLocaleString()} ៛</h4>
+                            <p class="text-[11px] text-slate-400 mt-0.5">≈ $${(totalExpenseKhr / rate).toFixed(2)}</p>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl shadow-xs border border-primary-100">
+                            <p class="text-xs text-slate-500 font-semibold">សមតុល្យសាច់ប្រាក់ (${periodLabel})</p>
+                            <h4 class="text-xl font-bold ${balanceKhr >= 0 ? 'text-primary-700' : 'text-red-600'} mt-1">${balanceKhr.toLocaleString()} ៛</h4>
+                            <p class="text-[11px] text-slate-400 mt-0.5">≈ $${(balanceKhr / rate).toFixed(2)}</p>
+                        </div>
+                    </div>
+
+                    <!-- Filter & Records Table -->
+                    <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 space-y-4">
+                        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <label class="font-bold text-slate-700">📅 ជ្រើសរើសខែ៖</label>
+                                <input type="month" value="${financeMonthFilter}" onchange="financeMonthFilter=this.value; renderFinance(document.getElementById('mainContent'))" class="px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-bold text-primary-700">
+                                <button type="button" onclick="financeMonthFilter=''; renderFinance(document.getElementById('mainContent'))" class="px-2.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg font-semibold">បង្ហាញគ្រប់ខែ</button>
+                                <select onchange="financeTypeFilter=this.value; renderFinance(document.getElementById('mainContent'))" class="px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-bold">
+                                    <option value="ALL" ${financeTypeFilter==='ALL'?'selected':''}>ទាំងចំណូល & ចំណាយ</option>
+                                    <option value="Income" ${financeTypeFilter==='Income'?'selected':''}>🟢 តែចំណូល (Income)</option>
+                                    <option value="Expense" ${financeTypeFilter==='Expense'?'selected':''}>🔴 តែចំណាយ (Expense)</option>
+                                </select>
+                            </div>
+                            <span class="text-slate-600 font-semibold">ចំនួនកំណត់ត្រា៖ <strong>${filtered.length}</strong></span>
+                        </div>
+
                         <div class="overflow-x-auto border rounded-xl">
                             <table class="w-full text-left text-xs">
-                                <thead class="bg-slate-50 border-b"><tr><th class="py-2.5 px-3">ថ្ងៃទី</th><th class="py-2.5 px-3">ប្រភេទ</th><th class="py-2.5 px-3">បរិយាយ</th><th class="py-2.5 px-3">ចំនួនទឹកប្រាក់ ($)</th><th class="py-2.5 px-3 text-right">លុប</th></tr></thead>
+                                <thead class="bg-slate-50 border-b text-slate-700">
+                                    <tr>
+                                        <th class="py-2.5 px-3">ថ្ងៃខែឆ្នាំ</th>
+                                        <th class="py-2.5 px-3">ប្រភេទ</th>
+                                        <th class="py-2.5 px-3">បរិយាយ / ប្រភពចំណូល-ចំណាយ</th>
+                                        <th class="py-2.5 px-3 text-right">ទឹកប្រាក់ (ប្រាក់រៀល ៛)</th>
+                                        <th class="py-2.5 px-3 text-right">គិតជាដុល្លារ ($)</th>
+                                        <th class="py-2.5 px-3 text-right">លុប</th>
+                                    </tr>
+                                </thead>
                                 <tbody class="divide-y">
-                                    ${(db.finance || []).map(f => `
-                                        <tr>
-                                            <td class="py-2.5 px-3">${f.date}</td>
-                                            <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded font-bold ${f.type==='Income'?'bg-emerald-50 text-emerald-700':'bg-red-50 text-red-600'}">${f.type==='Income'?'ចំណូល':'ចំណាយ'}</span></td>
-                                            <td class="py-2.5 px-3 font-semibold">${f.description}</td>
-                                            <td class="py-2.5 px-3 font-bold">$${Number(f.amount).toFixed(2)}</td>
-                                            <td class="py-2.5 px-3 text-right"><button onclick="db.finance=db.finance.filter(x=>x.id!=='${f.id}'); saveDB(); renderFinance(document.getElementById('mainContent'))" class="text-red-500 p-1"><i class="fas fa-trash"></i></button></td>
+                                    ${filtered.length === 0 ? `<tr><td colspan="6" class="py-8 text-center text-slate-400">មិនទាន់មានកំណត់ត្រាចំណូល-ចំណាយសម្រាប់${periodLabel}ទេ</td></tr>` :
+                                    filtered.map(f => {
+                                        const khr = f.currency === 'KHR' ? Number(f.amountKhr || 0) : Math.round(Number(f.amountUsd ?? f.amount ?? 0) * rate);
+                                        const usd = f.currency === 'USD' ? Number(f.amountUsd ?? f.amount ?? 0) : (khr / rate);
+                                        const isInc = f.type === 'Income';
+                                        return `
+                                            <tr class="hover:bg-slate-50">
+                                                <td class="py-2.5 px-3 font-mono">${f.date}</td>
+                                                <td class="py-2.5 px-3">
+                                                    <span class="px-2 py-0.5 rounded font-bold ${isInc ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}">
+                                                        ${isInc ? 'ចំណូល' : 'ចំណាយ'}
+                                                    </span>
+                                                </td>
+                                                <td class="py-2.5 px-3 font-semibold text-slate-800">${f.description}</td>
+                                                <td class="py-2.5 px-3 text-right font-bold ${isInc ? 'text-emerald-700' : 'text-red-600'}">${isInc ? '+' : '-'}${khr.toLocaleString()} ៛</td>
+                                                <td class="py-2.5 px-3 text-right text-slate-500">$${usd.toFixed(2)}</td>
+                                                <td class="py-2.5 px-3 text-right"><button onclick="deleteFinanceRecord('${f.id}')" class="text-red-500 hover:bg-red-50 p-1 rounded"><i class="fas fa-trash"></i></button></td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function openFinanceModal(defaultType = 'Income') {
+            const today = new Date().toISOString().split('T')[0];
+            openModal(defaultType === 'Income' ? 'កត់ត្រាចំណូលថ្មី (ជាប្រាក់រៀល ៛)' : 'កត់ត្រាចំណាយថ្មី (ជាប្រាក់រៀល ៛)', `
+                <form id="finForm" class="space-y-3 text-xs">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block font-semibold mb-1">ប្រភេទកំណត់ត្រា *</label>
+                            <select id="finType" class="w-full p-2.5 border rounded-xl font-bold">
+                                <option value="Income" ${defaultType==='Income'?'selected':''}>🟢 ចំណូល (Income)</option>
+                                <option value="Expense" ${defaultType==='Expense'?'selected':''}>🔴 ចំណាយ (Expense)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block font-semibold mb-1">ថ្ងៃខែឆ្នាំ *</label>
+                            <input type="date" id="finDate" required value="${today}" class="w-full p-2.5 border rounded-xl font-bold">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">បរិយាយ / ប្រភពចំណូល ឬចំណាយ *</label>
+                        <input type="text" id="finDesc" required placeholder="ឧ. បង់ថ្លៃសិក្សា, ទិញសម្ភារៈការិយាល័យ..." class="w-full p-2.5 border rounded-xl">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block font-semibold mb-1">រូបិយប័ណ្ណ</label>
+                            <select id="finCurrency" class="w-full p-2.5 border rounded-xl font-bold text-primary-700">
+                                <option value="KHR" selected>ប្រាក់រៀល (៛ KHR)</option>
+                                <option value="USD">ប្រាក់ដុល្លារ ($ USD)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block font-semibold mb-1">ចំនួនទឹកប្រាក់ *</label>
+                            <input type="number" step="any" id="finAmount" required placeholder="ឧ. 100000" class="w-full p-2.5 border rounded-xl font-bold text-sm">
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 bg-slate-100 rounded-xl">បោះបង់</button>
+                        <button type="submit" class="px-5 py-2 bg-primary-600 text-white rounded-xl font-bold shadow-md">រក្សាទុកកំណត់ត្រា</button>
+                    </div>
+                </form>
+            `);
+            document.getElementById('finForm').onsubmit = (e) => {
+                e.preventDefault();
+                const rate = Number(db.settings.exchangeRate) || 4100;
+                const currency = document.getElementById('finCurrency').value;
+                const rawAmt = Number(document.getElementById('finAmount').value) || 0;
+                const amountKhr = currency === 'KHR' ? Math.round(rawAmt) : Math.round(rawAmt * rate);
+                const amountUsd = currency === 'USD' ? rawAmt : Number((rawAmt / rate).toFixed(4));
+                const dateVal = document.getElementById('finDate').value;
+
+                if (!db.finance) db.finance = [];
+                db.finance.unshift({
+                    id: 'FIN-' + Date.now().toString().slice(-5),
+                    date: dateVal,
+                    type: document.getElementById('finType').value,
+                    description: document.getElementById('finDesc').value.trim(),
+                    currency,
+                    amountKhr,
+                    amountUsd,
+                    amount: amountUsd
+                });
+                financeMonthFilter = dateVal.slice(0, 7);
+                saveDB(); closeModal(); renderFinance(document.getElementById('mainContent'));
+                showToast(`បានកត់ត្រាទឹកប្រាក់ ${amountKhr.toLocaleString()} ៛ ជោគជ័យ!`, 'success');
+            };
+        }
+
+        function deleteFinanceRecord(id) {
+            const rec = (db.finance || []).find(x => x.id === id);
+            if (!rec) return;
+            confirmDelete(rec.description, () => {
+                db.finance = (db.finance || []).filter(x => x.id !== id);
+                saveDB(); renderFinance(document.getElementById('mainContent'));
+                showToast('បានលុបកំណត់ត្រាហិរញ្ញវត្ថុរួចរាល់', 'info');
+            });
+        }
+
+        function exportFinanceCSV() {
+            const rate = Number(db.settings.exchangeRate) || 4100;
+            const filtered = (db.finance || []).filter(f => {
+                const matchMonth = !financeMonthFilter || (f.date && f.date.startsWith(financeMonthFilter));
+                const matchType = financeTypeFilter === 'ALL' || f.type === financeTypeFilter;
+                return matchMonth && matchType;
+            });
+            const rows = [
+                ['ថ្ងៃខែឆ្នាំ', 'ប្រភេទ', 'បរិយាយ', 'ទឹកប្រាក់ (រៀល ៛)', 'ទឹកប្រាក់ (ដុល្លារ $)'],
+                ...filtered.map(f => {
+                    const khr = f.currency === 'KHR' ? Number(f.amountKhr || 0) : Math.round(Number(f.amountUsd ?? f.amount ?? 0) * rate);
+                    const usd = f.currency === 'USD' ? Number(f.amountUsd ?? f.amount ?? 0) : (khr / rate);
+                    return [f.date, f.type === 'Income' ? 'ចំណូល' : 'ចំណាយ', f.description, khr, usd.toFixed(2)];
+                })
+            ];
+            exportToCSV(`Finance_Report_${financeMonthFilter || 'All'}.csv`, rows);
+        }
+
+        function printMonthlyFinanceReport() {
+            const rate = Number(db.settings.exchangeRate) || 4100;
+            const filtered = (db.finance || []).filter(f => {
+                const matchMonth = !financeMonthFilter || (f.date && f.date.startsWith(financeMonthFilter));
+                const matchType = financeTypeFilter === 'ALL' || f.type === financeTypeFilter;
+                return matchMonth && matchType;
+            });
+            let totalInc = 0, totalExp = 0;
+            filtered.forEach(f => {
+                const khr = f.currency === 'KHR' ? Number(f.amountKhr || 0) : Math.round(Number(f.amountUsd ?? f.amount ?? 0) * rate);
+                if (f.type === 'Income') totalInc += khr;
+                else totalExp += khr;
+            });
+            const bal = totalInc - totalExp;
+            const periodLabel = financeMonthFilter ? `ប្រចាំខែ ${financeMonthFilter}` : 'គ្រប់ខែទាំងអស់';
+
+            printHTML(`
+                <div class="p-6 text-slate-900 space-y-4 font-sans">
+                    <div class="text-center border-b-2 border-slate-800 pb-3">
+                        <p class="text-xs font-bold">ព្រះរាជាណាចក្រកម្ពុជា • ជាតិ សាសនា ព្រះមហាក្សត្រ</p>
+                        <h2 class="text-xl font-bold mt-1">${db.settings.schoolNameKh}</h2>
+                        <h3 class="text-base font-bold text-primary-800 mt-1">របាយការណ៍បូកសរុបចំណូល និងចំណាយ${periodLabel}</h3>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3 text-center text-xs border border-slate-400 p-3 bg-slate-50">
+                        <div><strong>ចំណូលសរុប៖</strong> <span class="font-bold text-emerald-700">${totalInc.toLocaleString()} ៛</span></div>
+                        <div><strong>ចំណាយសរុប៖</strong> <span class="font-bold text-red-600">${totalExp.toLocaleString()} ៛</span></div>
+                        <div><strong>សមតុល្យសល់៖</strong> <span class="font-bold">${bal.toLocaleString()} ៛</span></div>
+                    </div>
+
+                    <table class="w-full border-collapse border border-slate-400 text-xs">
+                        <thead>
+                            <tr class="bg-slate-200">
+                                <th class="border border-slate-400 py-2 px-2 text-center">ល.រ</th>
+                                <th class="border border-slate-400 py-2 px-2 text-left">ថ្ងៃខែឆ្នាំ</th>
+                                <th class="border border-slate-400 py-2 px-2 text-center">ប្រភេទ</th>
+                                <th class="border border-slate-400 py-2 px-2 text-left">បរិយាយ</th>
+                                <th class="border border-slate-400 py-2 px-2 text-right">ទឹកប្រាក់ (រៀល ៛)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filtered.length === 0 ? `<tr><td colspan="5" class="border border-slate-400 py-4 text-center">មិនទាន់មានកំណត់ត្រាទេ</td></tr>` :
+                            filtered.map((f, idx) => {
+                                const khr = f.currency === 'KHR' ? Number(f.amountKhr || 0) : Math.round(Number(f.amountUsd ?? f.amount ?? 0) * rate);
+                                return `
+                                    <tr>
+                                        <td class="border border-slate-400 py-1.5 px-2 text-center">${idx + 1}</td>
+                                        <td class="border border-slate-400 py-1.5 px-2 font-mono">${f.date}</td>
+                                        <td class="border border-slate-400 py-1.5 px-2 text-center font-bold">${f.type === 'Income' ? 'ចំណូល' : 'ចំណាយ'}</td>
+                                        <td class="border border-slate-400 py-1.5 px-2">${f.description}</td>
+                                        <td class="border border-slate-400 py-1.5 px-2 text-right font-bold">${khr.toLocaleString()} ៛</td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+
+                    <div class="grid grid-cols-2 gap-8 pt-8 text-center text-xs">
+                        <div>
+                            <p>បានឃើញ និងឯកភាព</p>
+                            <p class="font-bold mt-1">នាយកសាលា</p>
+                        </div>
+                        <div>
+                            <p>ថ្ងៃទី........ ខែ........ ឆ្នាំ២០២...</p>
+                            <p class="font-bold mt-1">គណនេយ្យករ / អ្នករៀបចំរបាយការណ៍</p>
+                        </div>
+                    </div>
+                </div>
+            `);
+        }
+
+        // ============================================================================
+        // MODULE 8: LIBRARY MANAGEMENT (គ្រប់គ្រងបណ្ណាល័យ)
+        // ============================================================================
+        function renderLibrary(container) {
+            const books = db.library || [];
+            const borrows = db.borrowRecords || [];
+            const activeBorrows = borrows.filter(b => b.status !== 'Returned');
+
+            container.innerHTML = `
+                <div class="space-y-6">
+                    <!-- Books Catalog -->
+                    <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 space-y-4">
+                        <div class="flex flex-wrap justify-between items-center gap-2">
+                            <div>
+                                <h3 class="font-bold text-slate-800 text-base">បញ្ជីសៀវភៅក្នុងបណ្ណាល័យ (${books.length} មុខ)</h3>
+                                <p class="text-xs text-slate-500">គ្រប់គ្រងស្តុកសៀវភៅ និងការខ្ចី-សងរបស់សិស្ស និងគ្រូបង្រៀន</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="openBorrowBookModal()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs">+ កត់ត្រាការខ្ចីសៀវភៅ</button>
+                                <button onclick="openAddBookModal()" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold shadow-xs">+ បន្ថែមសៀវភៅថ្មី</button>
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto border rounded-xl">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-50 border-b text-slate-700">
+                                    <tr>
+                                        <th class="py-2.5 px-3">កូដសៀវភៅ</th>
+                                        <th class="py-2.5 px-3">ចំណងជើងសៀវភៅ</th>
+                                        <th class="py-2.5 px-3">អ្នកនិពន្ធ / ប្រភព</th>
+                                        <th class="py-2.5 px-3">ប្រភេទ</th>
+                                        <th class="py-2.5 px-3 text-center">ចំនួនសរុប</th>
+                                        <th class="py-2.5 px-3 text-center">នៅសល់</th>
+                                        <th class="py-2.5 px-3 text-right">លុប</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y">
+                                    ${books.length === 0 ? `<tr><td colspan="7" class="py-8 text-center text-slate-400">មិនទាន់មានសៀវភៅក្នុងបណ្ណាល័យទេ</td></tr>` :
+                                    books.map(b => `
+                                        <tr class="hover:bg-slate-50">
+                                            <td class="py-2.5 px-3 font-mono font-bold text-primary-700">${b.id}</td>
+                                            <td class="py-2.5 px-3 font-bold text-slate-800">${b.title}</td>
+                                            <td class="py-2.5 px-3">${b.author || '-'}</td>
+                                            <td class="py-2.5 px-3"><span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded">${b.category || 'ទូទៅ'}</span></td>
+                                            <td class="py-2.5 px-3 text-center font-bold">${b.totalCopies}</td>
+                                            <td class="py-2.5 px-3 text-center font-bold ${b.availableCopies > 0 ? 'text-emerald-600' : 'text-red-600'}">${b.availableCopies}</td>
+                                            <td class="py-2.5 px-3 text-right">
+                                                <button onclick="deleteLibraryBook('${b.id}')" class="text-red-500 hover:bg-red-50 p-1.5 rounded-lg"><i class="fas fa-trash"></i></button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Borrow / Return Records -->
+                    <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 space-y-4">
+                        <h3 class="font-bold text-slate-800 text-base">កំណត់ត្រាខ្ចី និងសងសៀវភៅ (កំពុងខ្ចី៖ ${activeBorrows.length})</h3>
+                        <div class="overflow-x-auto border rounded-xl">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-50 border-b text-slate-700">
+                                    <tr>
+                                        <th class="py-2.5 px-3">ថ្ងៃខ្ចី</th>
+                                        <th class="py-2.5 px-3">អ្នកខ្ចី (ID)</th>
+                                        <th class="py-2.5 px-3">សៀវភៅ</th>
+                                        <th class="py-2.5 px-3">ថ្ងៃត្រូវសង</th>
+                                        <th class="py-2.5 px-3">ស្ថានភាព</th>
+                                        <th class="py-2.5 px-3 text-right">សកម្មភាព</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y">
+                                    ${borrows.length === 0 ? `<tr><td colspan="6" class="py-6 text-center text-slate-400">មិនទាន់មានប្រវត្តិខ្ចីសៀវភៅទេ</td></tr>` :
+                                    borrows.map(br => `
+                                        <tr class="hover:bg-slate-50">
+                                            <td class="py-2.5 px-3 font-mono">${br.borrowDate}</td>
+                                            <td class="py-2.5 px-3 font-bold">${br.borrowerName} <span class="text-primary-600 font-mono">(${br.studentId})</span></td>
+                                            <td class="py-2.5 px-3 font-semibold">${br.bookTitle}</td>
+                                            <td class="py-2.5 px-3 font-mono">${br.dueDate || '-'}</td>
+                                            <td class="py-2.5 px-3">
+                                                <span class="px-2 py-0.5 rounded font-bold ${br.status === 'Returned' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}">
+                                                    ${br.status === 'Returned' ? 'បានសងរួច' : 'កំពុងខ្ចី'}
+                                                </span>
+                                            </td>
+                                            <td class="py-2.5 px-3 text-right whitespace-nowrap space-x-1">
+                                                ${br.status !== 'Returned' ? `<button onclick="returnLibraryBook('${br.id}')" class="px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-[11px] font-bold">សងសៀវភៅ</button>` : ''}
+                                                <button onclick="deleteBorrowRecord('${br.id}')" class="text-red-500 hover:bg-red-50 p-1 rounded"><i class="fas fa-trash"></i></button>
+                                            </td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -3459,209 +4378,180 @@
             `;
         }
 
-        function openFinanceModal() {
-            openModal('កត់ត្រាចំណូល / ចំណាយ', `
-                <form id="finForm" class="space-y-3 text-xs">
-                    <div><label class="font-semibold">ប្រភេទ</label><select id="finType" class="w-full p-2 border rounded-xl"><option value="Income">ចំណូល (Income)</option><option value="Expense">ចំណាយ (Expense)</option></select></div>
-                    <div><label class="font-semibold">បរិយាយ *</label><input type="text" id="finDesc" required class="w-full p-2 border rounded-xl"></div>
-                    <div><label class="font-semibold">ចំនួនទឹកប្រាក់ ($) *</label><input type="number" step="0.01" id="finAmt" required class="w-full p-2 border rounded-xl"></div>
-                    <button type="submit" class="w-full py-2.5 bg-primary-600 text-white rounded-xl font-bold">រក្សាទុក</button>
+        function openAddBookModal() {
+            const nextId = `BK-${String((db.library || []).length + 1).padStart(3, '0')}`;
+            openModal('បន្ថែមសៀវភៅថ្មីចូលបណ្ណាល័យ', `
+                <form id="addBookForm" class="space-y-3 text-xs">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="block font-semibold mb-1">កូដសៀវភៅ *</label><input type="text" id="bkId" required value="${nextId}" class="w-full p-2.5 border rounded-xl font-mono font-bold"></div>
+                        <div><label class="block font-semibold mb-1">ចំនួនក្បាល *</label><input type="number" id="bkCopies" required value="10" min="1" class="w-full p-2.5 border rounded-xl font-bold"></div>
+                    </div>
+                    <div><label class="block font-semibold mb-1">ចំណងជើងសៀវភៅ *</label><input type="text" id="bkTitle" required placeholder="ឧ. គណិតវិទ្យា ថ្នាក់ទី៨" class="w-full p-2.5 border rounded-xl"></div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="block font-semibold mb-1">អ្នកនិពន្ធ / ប្រភព</label><input type="text" id="bkAuthor" value="ក្រសួងអប់រំ" class="w-full p-2.5 border rounded-xl"></div>
+                        <div><label class="block font-semibold mb-1">ប្រភេទសៀវភៅ</label><input type="text" id="bkCat" value="សៀវភៅសិក្សាគោល" class="w-full p-2.5 border rounded-xl"></div>
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 bg-slate-100 rounded-xl">បោះបង់</button>
+                        <button type="submit" class="px-5 py-2 bg-primary-600 text-white rounded-xl font-bold">រក្សាទុក</button>
+                    </div>
                 </form>
             `);
-            document.getElementById('finForm').onsubmit = (e) => {
+            document.getElementById('addBookForm').onsubmit = (e) => {
                 e.preventDefault();
-                db.finance.unshift({
-                    id: 'FIN-' + Date.now().toString().slice(-5),
-                    date: new Date().toISOString().split('T')[0],
-                    type: document.getElementById('finType').value,
-                    description: document.getElementById('finDesc').value,
-                    amount: Number(document.getElementById('finAmt').value)
-                });
-                saveDB(); closeModal(); renderFinance(document.getElementById('mainContent'));
-            };
-        }
-
-        function renderLibrary(container) {
-            container.innerHTML = `
-                <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 space-y-4">
-                    <div class="flex justify-between items-center">
-                        <h3 class="font-bold text-slate-800 text-base">បញ្ជីសៀវភៅក្នុងបណ្ណាល័យ (${(db.library || []).length})</h3>
-                        <button onclick="openLibraryBookModal()" class="px-4 py-2 bg-primary-600 text-white rounded-xl text-xs font-bold">+ បន្ថែមសៀវភៅ</button>
-                    </div>
-                    <div class="overflow-x-auto border rounded-xl">
-                        <table class="w-full text-left text-xs">
-                            <thead class="bg-slate-50 border-b"><tr><th class="py-2.5 px-3">កូដ</th><th class="py-2.5 px-3">ចំណងជើងសៀវភៅ</th><th class="py-2.5 px-3">អ្នកនិពន្ធ</th><th class="py-2.5 px-3">ចំនួនសរុប</th><th class="py-2.5 px-3 text-right">លុប</th></tr></thead>
-                            <tbody class="divide-y">
-                                ${(db.library || []).map(b => `
-                                    <tr>
-                                        <td class="py-2.5 px-3 font-mono">${b.id}</td>
-                                        <td class="py-2.5 px-3 font-bold">${b.title}</td>
-                                        <td class="py-2.5 px-3">${b.author}</td>
-                                        <td class="py-2.5 px-3">${b.totalCopies} ក្បាល</td>
-                                        <td class="py-2.5 px-3 text-right"><button onclick="db.library=db.library.filter(x=>x.id!=='${b.id}'); saveDB(); renderLibrary(document.getElementById('mainContent'))" class="text-red-500 p-1"><i class="fas fa-trash"></i></button></td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            `;
-        }
-
-        function openLibraryBookModal() {
-            openModal('បន្ថែមសៀវភៅថ្មី', `
-                <form id="libForm" class="space-y-3 text-xs">
-                    <div><label class="font-semibold">ចំណងជើងសៀវភៅ *</label><input type="text" id="libTitle" required class="w-full p-2 border rounded-xl"></div>
-                    <div><label class="font-semibold">អ្នកនិពន្ធ</label><input type="text" id="libAuthor" value="ក្រសួងអប់រំ" class="w-full p-2 border rounded-xl"></div>
-                    <div><label class="font-semibold">ចំនួនក្បាល</label><input type="number" id="libCopies" value="10" class="w-full p-2 border rounded-xl"></div>
-                    <button type="submit" class="w-full py-2.5 bg-primary-600 text-white rounded-xl font-bold">រក្សាទុក</button>
-                </form>
-            `);
-            document.getElementById('libForm').onsubmit = (e) => {
-                e.preventDefault();
-                const copies = Number(document.getElementById('libCopies').value) || 1;
+                const copies = Number(document.getElementById('bkCopies').value) || 1;
+                if (!db.library) db.library = [];
                 db.library.push({
-                    id: 'BK-' + Date.now().toString().slice(-4),
-                    title: document.getElementById('libTitle').value,
-                    author: document.getElementById('libAuthor').value,
-                    category: 'ទូទៅ',
+                    id: document.getElementById('bkId').value.trim(),
+                    title: document.getElementById('bkTitle').value.trim(),
+                    author: document.getElementById('bkAuthor').value.trim(),
+                    category: document.getElementById('bkCat').value.trim(),
                     totalCopies: copies,
                     availableCopies: copies
                 });
                 saveDB(); closeModal(); renderLibrary(document.getElementById('mainContent'));
+                showToast('បានបន្ថែមសៀវភៅថ្មីចូលបណ្ណាល័យជោគជ័យ!', 'success');
             };
         }
 
+        function deleteLibraryBook(id) {
+            const bk = (db.library || []).find(x => x.id === id);
+            if (!bk) return;
+            confirmDelete(bk.title, () => {
+                db.library = db.library.filter(x => x.id !== id);
+                saveDB(); renderLibrary(document.getElementById('mainContent'));
+                showToast('បានលុបសៀវភៅរួចរាល់', 'info');
+            });
+        }
+
+        function openBorrowBookModal() {
+            const availBooks = (db.library || []).filter(b => b.availableCopies > 0);
+            if (availBooks.length === 0) {
+                showToast('មិនមានសៀវភៅនៅសល់សម្រាប់ឱ្យខ្ចីទេ!', 'error');
+                return;
+            }
+            const people = [
+                ...(db.students || []).map(s => ({ id: s.id, label: `👨‍🎓 ${s.id} - ${s.nameKh} (ថ្នាក់ ${s.room})`, name: s.nameKh })),
+                ...(db.teachers || []).map(t => ({ id: t.id, label: `👩‍🏫 ${t.id} - ${t.nameKh}`, name: t.nameKh }))
+            ];
+            if (people.length === 0) {
+                showToast('មិនទាន់មានទិន្នន័យសិស្ស ឬគ្រូក្នុងប្រព័ន្ធទេ!', 'error');
+                return;
+            }
+            const today = new Date().toISOString().split('T')[0];
+            const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+
+            openModal('កត់ត្រាការខ្ចីសៀវភៅ', `
+                <form id="borrowForm" class="space-y-3 text-xs">
+                    <div>
+                        <label class="block font-semibold mb-1">ជ្រើសរើសសៀវភៅ *</label>
+                        <select id="brBookId" required class="w-full p-2.5 border rounded-xl font-bold">
+                            ${availBooks.map(b => `<option value="${b.id}">${b.id} - ${b.title} (នៅសល់ ${b.availableCopies})</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">អ្នកខ្ចី (សិស្ស ឬគ្រូ) *</label>
+                        <select id="brPersonId" required class="w-full p-2.5 border rounded-xl">
+                            ${people.map(p => `<option value="${p.id}" data-name="${p.name}">${p.label}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="block font-semibold mb-1">ថ្ងៃខ្ចី</label><input type="date" id="brDate" value="${today}" class="w-full p-2.5 border rounded-xl"></div>
+                        <div><label class="block font-semibold mb-1">ថ្ងៃកំណត់សង</label><input type="date" id="brDue" value="${nextWeek}" class="w-full p-2.5 border rounded-xl"></div>
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 bg-slate-100 rounded-xl">បោះបង់</button>
+                        <button type="submit" class="px-5 py-2 bg-emerald-600 text-white rounded-xl font-bold">បញ្ជាក់ការខ្ចី</button>
+                    </div>
+                </form>
+            `);
+            document.getElementById('borrowForm').onsubmit = (e) => {
+                e.preventDefault();
+                const bookId = document.getElementById('brBookId').value;
+                const personSel = document.getElementById('brPersonId');
+                const studentId = personSel.value;
+                const borrowerName = personSel.options[personSel.selectedIndex]?.getAttribute('data-name') || studentId;
+                const bk = db.library.find(b => b.id === bookId);
+                if (bk && bk.availableCopies > 0) {
+                    bk.availableCopies -= 1;
+                    if (!db.borrowRecords) db.borrowRecords = [];
+                    db.borrowRecords.unshift({
+                        id: 'BR-' + Date.now().toString().slice(-5),
+                        bookId: bk.id,
+                        bookTitle: bk.title,
+                        studentId,
+                        borrowerName,
+                        borrowDate: document.getElementById('brDate').value,
+                        dueDate: document.getElementById('brDue').value,
+                        status: 'Borrowed'
+                    });
+                    saveDB(); closeModal(); renderLibrary(document.getElementById('mainContent'));
+                    showToast('បានកត់ត្រាការខ្ចីសៀវភៅជោគជ័យ!', 'success');
+                }
+            };
+        }
+
+        function returnLibraryBook(brId) {
+            const br = (db.borrowRecords || []).find(x => x.id === brId);
+            if (!br || br.status === 'Returned') return;
+            br.status = 'Returned';
+            br.returnDate = new Date().toISOString().split('T')[0];
+            const bk = (db.library || []).find(b => b.id === br.bookId);
+            if (bk) bk.availableCopies = Math.min(bk.totalCopies, (bk.availableCopies || 0) + 1);
+            saveDB(); renderLibrary(document.getElementById('mainContent'));
+            showToast('បានកត់ត្រាការសងសៀវភៅរួចរាល់!', 'success');
+        }
+
+        function deleteBorrowRecord(brId) {
+            db.borrowRecords = (db.borrowRecords || []).filter(x => x.id !== brId);
+            saveDB(); renderLibrary(document.getElementById('mainContent'));
+        }
+
+        // ============================================================================
+        // MODULE 9: SCHOOL INVENTORY (គ្រប់គ្រងសម្ភារៈសាលា)
+        // ============================================================================
         function renderInventory(container) {
-            container.innerHTML = `
-                <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 space-y-4">
-                    <div class="flex justify-between items-center">
-                        <h3 class="font-bold text-slate-800 text-base">បញ្ជីសម្ភារៈ និងបរិក្ខារសាលា (${(db.inventory || []).length})</h3>
-                        <button onclick="openInventoryModal()" class="px-4 py-2 bg-primary-600 text-white rounded-xl text-xs font-bold">+ បន្ថែមសម្ភារៈ</button>
-                    </div>
-                    <div class="overflow-x-auto border rounded-xl">
-                        <table class="w-full text-left text-xs">
-                            <thead class="bg-slate-50 border-b"><tr><th class="py-2.5 px-3">កូដ</th><th class="py-2.5 px-3">ឈ្មោះសម្ភារៈ</th><th class="py-2.5 px-3">ចំនួន</th><th class="py-2.5 px-3">ទីតាំង</th><th class="py-2.5 px-3 text-right">លុប</th></tr></thead>
-                            <tbody class="divide-y">
-                                ${(db.inventory || []).map(i => `
-                                    <tr>
-                                        <td class="py-2.5 px-3 font-mono">${i.id}</td>
-                                        <td class="py-2.5 px-3 font-bold">${i.name}</td>
-                                        <td class="py-2.5 px-3">${i.quantity}</td>
-                                        <td class="py-2.5 px-3">${i.location}</td>
-                                        <td class="py-2.5 px-3 text-right"><button onclick="db.inventory=db.inventory.filter(x=>x.id!=='${i.id}'); saveDB(); renderInventory(document.getElementById('mainContent'))" class="text-red-500 p-1"><i class="fas fa-trash"></i></button></td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            `;
-        }
-
-        function openInventoryModal() {
-            openModal('បន្ថែមសម្ភារៈថ្មី', `
-                <form id="invForm" class="space-y-3 text-xs">
-                    <div><label class="font-semibold">ឈ្មោះសម្ភារៈ *</label><input type="text" id="invName" required class="w-full p-2 border rounded-xl"></div>
-                    <div><label class="font-semibold">ចំនួន *</label><input type="number" id="invQty" value="1" required class="w-full p-2 border rounded-xl"></div>
-                    <div><label class="font-semibold">ទីតាំងរក្សាទុក</label><input type="text" id="invLoc" value="បន្ទប់រដ្ឋបាល" class="w-full p-2 border rounded-xl"></div>
-                    <button type="submit" class="w-full py-2.5 bg-primary-600 text-white rounded-xl font-bold">រក្សាទុក</button>
-                </form>
-            `);
-            document.getElementById('invForm').onsubmit = (e) => {
-                e.preventDefault();
-                db.inventory.push({
-                    id: 'INV-' + Date.now().toString().slice(-4),
-                    name: document.getElementById('invName').value,
-                    category: 'សម្ភារៈទូទៅ',
-                    quantity: Number(document.getElementById('invQty').value),
-                    damaged: 0,
-                    location: document.getElementById('invLoc').value,
-                    status: 'ល្អ'
-                });
-                saveDB(); closeModal(); renderInventory(document.getElementById('mainContent'));
-            };
-        }
-
-        function renderStaff(container) {
-            container.innerHTML = `
-                <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 space-y-4">
-                    <div class="flex justify-between items-center">
-                        <h3 class="font-bold text-slate-800 text-base">បញ្ជីបុគ្គលិក និងប្រាក់បៀវត្ស (${(db.staff || []).length})</h3>
-                        <button onclick="openStaffModal()" class="px-4 py-2 bg-primary-600 text-white rounded-xl text-xs font-bold">+ បន្ថែមបុគ្គលិក</button>
-                    </div>
-                    <div class="overflow-x-auto border rounded-xl">
-                        <table class="w-full text-left text-xs">
-                            <thead class="bg-slate-50 border-b"><tr><th class="py-2.5 px-3">អត្តលេខ</th><th class="py-2.5 px-3">ឈ្មោះបុគ្គលិក</th><th class="py-2.5 px-3">តួនាទី</th><th class="py-2.5 px-3">ប្រាក់ខែគោល ($)</th><th class="py-2.5 px-3 text-right">លុប</th></tr></thead>
-                            <tbody class="divide-y">
-                                ${(db.staff || []).map(st => `
-                                    <tr>
-                                        <td class="py-2.5 px-3 font-mono">${st.id}</td>
-                                        <td class="py-2.5 px-3 font-bold">${st.nameKh}</td>
-                                        <td class="py-2.5 px-3">${st.position}</td>
-                                        <td class="py-2.5 px-3 font-bold text-emerald-700">$${st.baseSalary}</td>
-                                        <td class="py-2.5 px-3 text-right"><button onclick="db.staff=db.staff.filter(x=>x.id!=='${st.id}'); saveDB(); renderStaff(document.getElementById('mainContent'))" class="text-red-500 p-1"><i class="fas fa-trash"></i></button></td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            `;
-        }
-
-        function openStaffModal() {
-            openModal('បន្ថែមបុគ្គលិកថ្មី', `
-                <form id="stfForm" class="space-y-3 text-xs">
-                    <div><label class="font-semibold">ឈ្មោះបុគ្គលិក *</label><input type="text" id="stfName" required class="w-full p-2 border rounded-xl"></div>
-                    <div><label class="font-semibold">តួនាទី *</label><input type="text" id="stfPos" required class="w-full p-2 border rounded-xl"></div>
-                    <div><label class="font-semibold">ប្រាក់ខែគោល ($)</label><input type="number" id="stfSal" value="300" class="w-full p-2 border rounded-xl"></div>
-                    <button type="submit" class="w-full py-2.5 bg-primary-600 text-white rounded-xl font-bold">រក្សាទុក</button>
-                </form>
-            `);
-            document.getElementById('stfForm').onsubmit = (e) => {
-                e.preventDefault();
-                db.staff.push({
-                    id: 'STF' + String((db.staff || []).length + 1).padStart(3, '0'),
-                    nameKh: document.getElementById('stfName').value,
-                    position: document.getElementById('stfPos').value,
-                    baseSalary: Number(document.getElementById('stfSal').value),
-                    bonus: 0,
-                    deduction: 0,
-                    attendanceDays: 26
-                });
-                saveDB(); closeModal(); renderStaff(document.getElementById('mainContent'));
-            };
-        }
-
-        function renderReports(container) {
-            const yearStudents = db.students.filter(s => (!s.year || s.year === db.settings.currentYear) && isItemInActiveLevel(s));
-            const levelClasses = db.classes.filter(c => isItemInActiveLevel(c));
+            const items = db.inventory || [];
             container.innerHTML = `
                 <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 space-y-4">
                     <div class="flex flex-wrap justify-between items-center gap-2">
                         <div>
-                            <h3 class="font-bold text-slate-800 text-base">របាយការណ៍សង្ខេបប្រចាំឆ្នាំសិក្សា ${db.settings.currentYear}</h3>
-                            <p class="text-xs text-slate-500">ស្ថិតិសិស្សតាមថ្នាក់រៀន និងវត្តមានសរុប</p>
+                            <h3 class="font-bold text-slate-800 text-base">បញ្ជីសម្ភារៈ និងបរិក្ខារសាលារៀន (${items.length} មុខ)</h3>
+                            <p class="text-xs text-slate-500">គ្រប់គ្រងចំនួនសម្ភារៈ ទីតាំងប្រើប្រាស់ និងស្ថានភាពខូចខាត</p>
                         </div>
-                        <button onclick="exportComprehensiveReportCSV()" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold"><i class="fas fa-file-excel mr-1"></i> ទាញយករបាយការណ៍ CSV</button>
+                        <button onclick="openInventoryModal()" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold shadow-xs">+ បន្ថែមសម្ភារៈថ្មី</button>
                     </div>
                     <div class="overflow-x-auto border rounded-xl">
                         <table class="w-full text-left text-xs">
-                            <thead class="bg-slate-50 border-b"><tr><th class="py-2.5 px-3">បន្ទប់ / ថ្នាក់</th><th class="py-2.5 px-3">កម្រិត</th><th class="py-2.5 px-3">ក្រុម</th><th class="py-2.5 px-3">សិស្សសរុប</th><th class="py-2.5 px-3">សិស្សស្រី</th></tr></thead>
+                            <thead class="bg-slate-50 border-b text-slate-700">
+                                <tr>
+                                    <th class="py-2.5 px-3">កូដ</th>
+                                    <th class="py-2.5 px-3">ឈ្មោះសម្ភារៈ</th>
+                                    <th class="py-2.5 px-3">ប្រភេទ</th>
+                                    <th class="py-2.5 px-3 text-center">ចំនួនសរុប</th>
+                                    <th class="py-2.5 px-3 text-center">ខូចខាត</th>
+                                    <th class="py-2.5 px-3">ទីតាំង</th>
+                                    <th class="py-2.5 px-3">ស្ថានភាព</th>
+                                    <th class="py-2.5 px-3 text-right">សកម្មភាព</th>
+                                </tr>
+                            </thead>
                             <tbody class="divide-y">
-                                ${levelClasses.map(cls => {
-                                    const stus = yearStudents.filter(s => s.room === cls.room);
-                                    return `
-                                        <tr>
-                                            <td class="py-2.5 px-3 font-bold">ថ្នាក់ ${cls.room}</td>
-                                            <td class="py-2.5 px-3">ថ្នាក់ទី ${cls.grade}</td>
-                                            <td class="py-2.5 px-3">${cls.group || '-'}</td>
-                                            <td class="py-2.5 px-3 font-bold text-primary-700">${stus.length} នាក់</td>
-                                            <td class="py-2.5 px-3">${stus.filter(s=>s.gender==='ស្រី').length} នាក់</td>
-                                        </tr>
-                                    `;
-                                }).join('')}
+                                ${items.length === 0 ? `<tr><td colspan="8" class="py-8 text-center text-slate-400">មិនទាន់មានទិន្នន័យសម្ភារៈទេ</td></tr>` :
+                                items.map(it => `
+                                    <tr class="hover:bg-slate-50">
+                                        <td class="py-2.5 px-3 font-mono font-bold text-primary-700">${it.id}</td>
+                                        <td class="py-2.5 px-3 font-bold text-slate-800">${it.name}</td>
+                                        <td class="py-2.5 px-3">${it.category || '-'}</td>
+                                        <td class="py-2.5 px-3 text-center font-bold">${it.quantity}</td>
+                                        <td class="py-2.5 px-3 text-center text-red-600 font-semibold">${it.damaged || 0}</td>
+                                        <td class="py-2.5 px-3">${it.location || '-'}</td>
+                                        <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded font-bold ${it.status === 'ល្អ' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}">${it.status || 'ល្អ'}</span></td>
+                                        <td class="py-2.5 px-3 text-right whitespace-nowrap space-x-1">
+                                            <button onclick="openInventoryModal('${it.id}')" class="p-1 text-blue-600 hover:bg-blue-50 rounded"><i class="fas fa-edit"></i></button>
+                                            <button onclick="deleteInventoryItem('${it.id}')" class="p-1 text-red-600 hover:bg-red-50 rounded"><i class="fas fa-trash"></i></button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
                             </tbody>
                         </table>
                     </div>
@@ -3669,50 +4559,437 @@
             `;
         }
 
-        function exportIndividualAttendanceSummaryCSV() {
-            const filteredAttendance = (db.attendance || []).filter(a => {
-                if (a.targetType !== indSummaryTab) return false;
-                const matchRoom = indSummaryTab === 'Teacher' || indSummaryFilterRoom === 'ALL' || a.room === indSummaryFilterRoom;
-                const matchDate = !indSummaryFilterDate || (a.date === indSummaryFilterDate);
-                const matchMonth = !indSummaryFilterMonth || (a.date && a.date.startsWith(indSummaryFilterMonth));
-                return matchRoom && matchDate && matchMonth;
-            });
-
-            const summaryMap = {};
-            filteredAttendance.forEach(a => {
-                if (!summaryMap[a.targetId]) {
-                    summaryMap[a.targetId] = { id: a.targetId, name: a.targetName, type: a.targetType === 'Student' ? 'សិស្ស' : 'គ្រូបង្រៀន', room: a.room || '-', present: 0, late: 0, excused: 0, absent: 0, total: 0 };
+        function openInventoryModal(invId = null) {
+            const it = invId ? (db.inventory || []).find(x => x.id === invId) : null;
+            const nextId = `INV-${String((db.inventory || []).length + 1).padStart(3, '0')}`;
+            openModal(it ? 'កែប្រែព័ត៌មានសម្ភារៈ' : 'បន្ថែមសម្ភារៈថ្មី', `
+                <form id="invForm" class="space-y-3 text-xs">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="block font-semibold mb-1">កូដសម្ភារៈ</label><input type="text" id="invCode" required value="${it ? it.id : nextId}" class="w-full p-2.5 border rounded-xl font-mono font-bold"></div>
+                        <div><label class="block font-semibold mb-1">ប្រភេទ</label><input type="text" id="invCat" value="${it ? it.category : 'សង្ហារិម'}" class="w-full p-2.5 border rounded-xl"></div>
+                    </div>
+                    <div><label class="block font-semibold mb-1">ឈ្មោះសម្ភារៈ *</label><input type="text" id="invName" required value="${it ? it.name : ''}" placeholder="ឧ. ក្តារខៀន, កុំព្យូទ័រ..." class="w-full p-2.5 border rounded-xl"></div>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div><label class="block font-semibold mb-1">ចំនួនសរុប</label><input type="number" id="invQty" value="${it ? it.quantity : 10}" min="0" class="w-full p-2.5 border rounded-xl font-bold"></div>
+                        <div><label class="block font-semibold mb-1">ខូចខាត</label><input type="number" id="invDmg" value="${it ? (it.damaged || 0) : 0}" min="0" class="w-full p-2.5 border rounded-xl"></div>
+                        <div>
+                            <label class="block font-semibold mb-1">ស្ថានភាព</label>
+                            <select id="invStatus" class="w-full p-2.5 border rounded-xl">
+                                <option value="ល្អ" ${it?.status === 'ល្អ' ? 'selected' : ''}>ល្អ</option>
+                                <option value="ត្រូវជួសជុល" ${it?.status === 'ត្រូវជួសជុល' ? 'selected' : ''}>ត្រូវជួសជុល</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div><label class="block font-semibold mb-1">ទីតាំងរក្សាទុក</label><input type="text" id="invLoc" value="${it ? it.location : 'បន្ទប់រៀន'}" class="w-full p-2.5 border rounded-xl"></div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 bg-slate-100 rounded-xl">បោះបង់</button>
+                        <button type="submit" class="px-5 py-2 bg-primary-600 text-white rounded-xl font-bold">រក្សាទុក</button>
+                    </div>
+                </form>
+            `);
+            document.getElementById('invForm').onsubmit = (e) => {
+                e.preventDefault();
+                const data = {
+                    id: document.getElementById('invCode').value.trim(),
+                    name: document.getElementById('invName').value.trim(),
+                    category: document.getElementById('invCat').value.trim(),
+                    quantity: Number(document.getElementById('invQty').value) || 0,
+                    damaged: Number(document.getElementById('invDmg').value) || 0,
+                    location: document.getElementById('invLoc').value.trim(),
+                    status: document.getElementById('invStatus').value
+                };
+                if (!db.inventory) db.inventory = [];
+                if (it) {
+                    const idx = db.inventory.findIndex(x => x.id === it.id);
+                    db.inventory[idx] = data;
+                    showToast('បានកែប្រែព័ត៌មានសម្ភារៈជោគជ័យ!', 'success');
+                } else {
+                    db.inventory.push(data);
+                    showToast('បានបន្ថែមសម្ភារៈថ្មីជោគជ័យ!', 'success');
                 }
-                const item = summaryMap[a.targetId];
-                item.total++;
-                if (a.status === 'មានវត្តមាន') item.present++;
-                else if (a.status === 'យឺត') item.late++;
-                else if (a.status === 'មានច្បាប់') item.excused++;
-                else if (a.status === 'អវត្តមាន') item.absent++;
+                saveDB(); closeModal(); renderInventory(document.getElementById('mainContent'));
+            };
+        }
+
+        function deleteInventoryItem(id) {
+            const it = (db.inventory || []).find(x => x.id === id);
+            if (!it) return;
+            confirmDelete(it.name, () => {
+                db.inventory = db.inventory.filter(x => x.id !== id);
+                saveDB(); renderInventory(document.getElementById('mainContent'));
+                showToast('បានលុបសម្ភារៈរួចរាល់', 'info');
+            });
+        }
+
+        // ============================================================================
+        // MODULE 10: STAFF & PAYROLL (គ្រប់គ្រងបុគ្គលិក និងគណនាប្រាក់ឈ្នួលគ្រូតាមម៉ោងស្កេន QR ជាប្រាក់រៀល)
+        // ============================================================================
+        function renderStaff(container) {
+            const rate = Number(db.settings.exchangeRate) || 4100;
+            if (typeof window.payrollMonthFilter === 'undefined') {
+                window.payrollMonthFilter = new Date().toISOString().slice(0, 7);
+            }
+            if (typeof window.payrollScanModeFilter === 'undefined') {
+                window.payrollScanModeFilter = 'CHECKIN_ONLY';
+            }
+
+            const teacherPayrollRows = (db.teachers || []).map(t => {
+                const scans = (db.attendance || []).filter(a => {
+                    if (a.targetType !== 'Teacher' || a.targetId !== t.id) return false;
+                    if (a.status !== 'មានវត្តមាន' && a.status !== 'យឺត') return false;
+                    if (window.payrollMonthFilter && (!a.date || !a.date.startsWith(window.payrollMonthFilter))) return false;
+                    if (window.payrollScanModeFilter === 'CHECKIN_ONLY' && a.mode && a.mode.includes('Check-out')) return false;
+                    return true;
+                });
+                const scanCount = scans.length;
+                const rateKhr = t.hourlyRateKhr !== undefined ? Number(t.hourlyRateKhr) : Math.round((Number(t.hourlyRate) || 5) * rate);
+                const totalKhr = scanCount * rateKhr;
+                return { teacher: t, scans, scanCount, rateKhr, totalKhr };
             });
 
-            const rows = [
-                ['អត្តលេខ', indSummaryTab === 'Teacher' ? 'ឈ្មោះគ្រូបង្រៀន' : 'ឈ្មោះសិស្ស', 'ប្រភេទ', 'ថ្នាក់', 'មានវត្តមាន', 'មកយឺត', 'មានច្បាប់', 'អវត្តមាន', 'សរុប', 'ភាគរយ (%)'],
-                ...Object.values(summaryMap).map(item => {
-                    const pct = item.total > 0 ? Math.round(((item.present + item.late) / item.total) * 100) : 0;
-                    return [item.id, item.name, item.type, item.room, item.present, item.late, item.excused, item.absent, item.total, `${pct}%`];
-                })
-            ];
-            const label = indSummaryTab === 'Teacher' ? 'Teachers' : 'Students';
-            exportToCSV(`Attendance_Summary_${label}_${indSummaryFilterDate || indSummaryFilterMonth || 'All'}.csv`, rows);
+            const grandTotalTeacherKhr = teacherPayrollRows.reduce((s, r) => s + r.totalKhr, 0);
+
+            container.innerHTML = `
+                <div class="space-y-6">
+                    <!-- Teacher QR Scan Payroll Calculator (KHR) -->
+                    <div class="bg-white p-5 rounded-2xl shadow-xs border border-emerald-200 space-y-4">
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b pb-3">
+                            <div>
+                                <h3 class="font-bold text-emerald-900 text-base flex items-center gap-2">
+                                    <i class="fas fa-calculator text-emerald-600"></i> គណនាទូទាត់ប្រាក់ឈ្នួលគ្រូតាមម៉ោងស្កេន QR (ជាប្រាក់រៀល ៛)
+                                </h3>
+                                <p class="text-xs text-slate-500 mt-0.5">រាប់ម៉ោង/ដងស្កេនវត្តមានគ្រូដោយស្វ័យប្រវត្តិ (មានវត្តមាន និងយឺត) × អត្រាប្រាក់រៀលក្នុង ១ ម៉ោង/ដង</p>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2 text-xs">
+                                <input type="month" value="${window.payrollMonthFilter}" onchange="window.payrollMonthFilter=this.value; renderStaff(document.getElementById('mainContent'))" class="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-primary-700">
+                                <button type="button" onclick="window.payrollMonthFilter=''; renderStaff(document.getElementById('mainContent'))" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold">សរុបគ្រប់ខែ</button>
+                                <select onchange="window.payrollScanModeFilter=this.value; renderStaff(document.getElementById('mainContent'))" class="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl font-bold">
+                                    <option value="CHECKIN_ONLY" ${window.payrollScanModeFilter==='CHECKIN_ONLY'?'selected':''}>រាប់តែម៉ោងចូល (Check-in)</option>
+                                    <option value="ALL_SCANS" ${window.payrollScanModeFilter==='ALL_SCANS'?'selected':''}>រាប់គ្រប់ដងស្កេនបង្រៀន</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto border rounded-xl">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-emerald-50 text-emerald-900 border-b">
+                                    <tr>
+                                        <th class="py-2.5 px-3">អត្តលេខ</th>
+                                        <th class="py-2.5 px-3">ឈ្មោះគ្រូបង្រៀន</th>
+                                        <th class="py-2.5 px-3 text-center">ម៉ោង/ដងស្កេន</th>
+                                        <th class="py-2.5 px-3 text-right">អត្រាឈ្នួល (រៀល/ម៉ោង)</th>
+                                        <th class="py-2.5 px-3 text-right">ប្រាក់ឈ្នួលសរុប (៛)</th>
+                                        <th class="py-2.5 px-3 text-right">សកម្មភាព</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y">
+                                    ${teacherPayrollRows.map(row => `
+                                        <tr class="hover:bg-slate-50">
+                                            <td class="py-2.5 px-3 font-mono font-bold text-emerald-700">${row.teacher.id}</td>
+                                            <td class="py-2.5 px-3 font-bold text-slate-800">${row.teacher.nameKh} <span class="block text-[10px] font-normal text-slate-500">${row.teacher.subject || ''}</span></td>
+                                            <td class="py-2.5 px-3 text-center">
+                                                <span class="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg font-bold">${row.scanCount} ម៉ោង/ដង</span>
+                                            </td>
+                                            <td class="py-2.5 px-3 text-right">
+                                                <input type="number" step="500" value="${row.rateKhr}" onchange="updateTeacherRateKhr('${row.teacher.id}', this.value)" class="w-28 px-2 py-1 text-right border border-slate-300 rounded-lg font-bold text-slate-800"> ៛
+                                            </td>
+                                            <td class="py-2.5 px-3 text-right font-bold text-emerald-700 text-sm">${row.totalKhr.toLocaleString()} ៛</td>
+                                            <td class="py-2.5 px-3 text-right whitespace-nowrap space-x-1">
+                                                <button type="button" onclick="viewTeacherScanDetails('${row.teacher.id}')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold">លម្អិត</button>
+                                                <button type="button" onclick="payTeacherPayrollKhr('${row.teacher.id}', ${row.scanCount}, ${row.rateKhr}, ${row.totalKhr})" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-2xs">ទូទាត់ប្រាក់</button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                                <tfoot class="bg-emerald-50/70 font-bold text-emerald-950 border-t">
+                                    <tr>
+                                        <td colspan="4" class="py-2.5 px-3 text-right">សរុបប្រាក់ឈ្នួលគ្រូទាំងអស់ (${window.payrollMonthFilter || 'គ្រប់ខែ'})៖</td>
+                                        <td class="py-2.5 px-3 text-right text-sm text-emerald-700">${grandTotalTeacherKhr.toLocaleString()} ៛</td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- General Administrative Staff List -->
+                    <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 space-y-4">
+                        <div class="flex flex-wrap justify-between items-center gap-2">
+                            <h3 class="font-bold text-slate-800 text-base">បញ្ជីបុគ្គលិករដ្ឋបាល និងប្រាក់បៀវត្សប្រចាំខែ (${(db.staff || []).length} នាក់)</h3>
+                            <button onclick="openStaffModal()" class="px-4 py-2 bg-primary-600 text-white rounded-xl text-xs font-bold">+ បន្ថែមបុគ្គលិក</button>
+                        </div>
+                        <div class="overflow-x-auto border rounded-xl">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-50 border-b text-slate-700">
+                                    <tr>
+                                        <th class="py-2.5 px-3">អត្តលេខ</th>
+                                        <th class="py-2.5 px-3">ឈ្មោះបុគ្គលិក</th>
+                                        <th class="py-2.5 px-3">តួនាទី</th>
+                                        <th class="py-2.5 px-3 text-right">ប្រាក់ខែគោល ($)</th>
+                                        <th class="py-2.5 px-3 text-right">ប្រាក់បន្ថែម ($)</th>
+                                        <th class="py-2.5 px-3 text-right">សរុបទទួលបាន ($)</th>
+                                        <th class="py-2.5 px-3 text-right">សកម្មភាព</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y">
+                                    ${(db.staff || []).map(st => {
+                                        const net = (Number(st.baseSalary) || 0) + (Number(st.bonus) || 0) - (Number(st.deduction) || 0);
+                                        return `
+                                            <tr class="hover:bg-slate-50">
+                                                <td class="py-2.5 px-3 font-mono font-bold text-primary-700">${st.id}</td>
+                                                <td class="py-2.5 px-3 font-bold">${st.nameKh}</td>
+                                                <td class="py-2.5 px-3">${st.position}</td>
+                                                <td class="py-2.5 px-3 text-right">$${Number(st.baseSalary || 0).toFixed(2)}</td>
+                                                <td class="py-2.5 px-3 text-right text-emerald-600">+$${Number(st.bonus || 0).toFixed(2)}</td>
+                                                <td class="py-2.5 px-3 text-right font-bold text-primary-700">$${net.toFixed(2)} (${Math.round(net * rate).toLocaleString()} ៛)</td>
+                                                <td class="py-2.5 px-3 text-right whitespace-nowrap space-x-1">
+                                                    <button onclick="openStaffModal('${st.id}')" class="p-1 text-blue-600 hover:bg-blue-50 rounded"><i class="fas fa-edit"></i></button>
+                                                    <button onclick="deleteStaff('${st.id}')" class="p-1 text-red-600 hover:bg-red-50 rounded"><i class="fas fa-trash"></i></button>
+                                                </td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateTeacherRateKhr(tchId, newRateKhr) {
+            const tch = (db.teachers || []).find(t => t.id === tchId);
+            if (!tch) return;
+            const rate = Number(db.settings.exchangeRate) || 4100;
+            tch.hourlyRateKhr = Math.max(0, Number(newRateKhr) || 0);
+            tch.hourlyRate = Number((tch.hourlyRateKhr / rate).toFixed(2));
+            saveDB();
+            renderStaff(document.getElementById('mainContent'));
+            showToast(`បានកែប្រែអត្រាឈ្នួលរបស់ ${tch.nameKh} ជា ${tch.hourlyRateKhr.toLocaleString()} ៛/ម៉ោង`, 'success');
+        }
+
+        function viewTeacherScanDetails(tchId) {
+            const tch = (db.teachers || []).find(t => t.id === tchId);
+            if (!tch) return;
+            const scans = (db.attendance || []).filter(a => {
+                if (a.targetType !== 'Teacher' || a.targetId !== tch.id) return false;
+                if (a.status !== 'មានវត្តមាន' && a.status !== 'យឺត') return false;
+                if (window.payrollMonthFilter && (!a.date || !a.date.startsWith(window.payrollMonthFilter))) return false;
+                if (window.payrollScanModeFilter === 'CHECKIN_ONLY' && a.mode && a.mode.includes('Check-out')) return false;
+                return true;
+            });
+            openModal(`ប្រវត្តិស្កេនម៉ោងបង្រៀនរបស់ ${tch.nameKh}`, `
+                <div class="space-y-3 text-xs">
+                    <p class="font-bold text-emerald-800">សរុបម៉ោង/ដងស្កេន (${window.payrollMonthFilter || 'គ្រប់ខែ'})៖ ${scans.length} ដង</p>
+                    <div class="max-h-64 overflow-y-auto border rounded-xl">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-50 border-b">
+                                <tr><th class="py-2 px-3">ថ្ងៃទី</th><th class="py-2 px-3">ម៉ោង</th><th class="py-2 px-3">ប្រភេទ</th><th class="py-2 px-3">ស្ថានភាព</th></tr>
+                            </thead>
+                            <tbody class="divide-y">
+                                ${scans.length === 0 ? `<tr><td colspan="4" class="py-4 text-center text-slate-400">គ្មានកំណត់ត្រាស្កេនទេ</td></tr>` :
+                                scans.map(s => `<tr><td class="py-2 px-3 font-mono">${s.date}</td><td class="py-2 px-3 font-mono">${s.time || '-'}</td><td class="py-2 px-3">${s.mode || '-'}</td><td class="py-2 px-3 font-bold text-emerald-700">${s.status}</td></tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `);
+        }
+
+        function payTeacherPayrollKhr(tchId, scanCount, rateKhr, totalKhr) {
+            const tch = (db.teachers || []).find(t => t.id === tchId);
+            if (!tch) return;
+            const rate = Number(db.settings.exchangeRate) || 4100;
+            const periodLabel = window.payrollMonthFilter || new Date().toISOString().slice(0, 7);
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            openModal('បង្កាន់ដៃទូទាត់ប្រាក់ឈ្នួលគ្រូបង្រៀន', `
+                <div id="teacherPayrollReceipt" class="p-4 border-2 border-emerald-600 rounded-2xl space-y-3 text-xs bg-white">
+                    <div class="text-center border-b pb-2">
+                        <h4 class="font-bold text-base text-slate-900">${db.settings.schoolNameKh}</h4>
+                        <p class="font-bold text-emerald-700">បង្កាន់ដៃបើកប្រាក់ឈ្នួលតាមម៉ោងស្កេន QR</p>
+                    </div>
+                    <div class="space-y-1.5">
+                        <p>ឈ្មោះគ្រូបង្រៀន៖ <strong>${tch.nameKh}</strong> (${tch.id})</p>
+                        <p>ប្រចាំខែ៖ <strong>${periodLabel}</strong></p>
+                        <p>ចំនួនម៉ោង/ដងស្កេន៖ <strong>${scanCount} ម៉ោង/ដង</strong></p>
+                        <p>អត្រាឈ្នួលក្នុង ១ ម៉ោង៖ <strong>${rateKhr.toLocaleString()} ៛</strong></p>
+                        <p class="text-sm font-bold text-emerald-800 pt-1 border-t">ទឹកប្រាក់ទូទាត់សរុប៖ ${totalKhr.toLocaleString()} ៛ (≈ $${(totalKhr / rate).toFixed(2)})</p>
+                    </div>
+                </div>
+                <div class="flex flex-wrap justify-end gap-2 mt-4">
+                    <button type="button" onclick="printHTML(document.getElementById('teacherPayrollReceipt').outerHTML)" class="px-4 py-2 bg-slate-800 text-white rounded-xl text-xs font-bold"><i class="fas fa-print mr-1"></i> បោះពុម្ពបង្កាន់ដៃ</button>
+                    <button type="button" onclick="recordTeacherPayrollExpense('${tch.id}', ${totalKhr}, '${periodLabel}', '${todayStr}')" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-md">✅ បញ្ជាក់បើកប្រាក់ & កត់ចូលចំណាយ</button>
+                </div>
+            `);
+        }
+
+        function recordTeacherPayrollExpense(tchId, totalKhr, periodLabel, todayStr) {
+            const tch = (db.teachers || []).find(t => t.id === tchId);
+            if (!tch) return;
+            const rate = Number(db.settings.exchangeRate) || 4100;
+            const amtUsd = Number((totalKhr / rate).toFixed(4));
+            if (!db.finance) db.finance = [];
+            db.finance.unshift({
+                id: 'FIN-' + Date.now().toString().slice(-5),
+                date: todayStr,
+                type: 'Expense',
+                description: `បើកប្រាក់ឈ្នួលគ្រូ៖ ${tch.nameKh} (${tch.id}) ប្រចាំខែ ${periodLabel}`,
+                currency: 'KHR',
+                amountKhr: totalKhr,
+                amountUsd: amtUsd,
+                amount: amtUsd
+            });
+            logAudit('ទូទាត់ប្រាក់ឈ្នួលគ្រូ', `${tch.nameKh} - ${totalKhr.toLocaleString()} ៛`);
+            saveDB(); closeModal();
+            showToast(`បានកត់ត្រាការបើកប្រាក់ ${totalKhr.toLocaleString()} ៛ ចូលបញ្ជីចំណាយហិរញ្ញវត្ថុរួចរាល់!`, 'success');
+        }
+
+        function openStaffModal(stId = null) {
+            const st = stId ? (db.staff || []).find(x => x.id === stId) : null;
+            const nextId = `STF${String((db.staff || []).length + 1).padStart(3, '0')}`;
+            openModal(st ? 'កែប្រែព័ត៌មានបុគ្គលិក' : 'បន្ថែមបុគ្គលិកថ្មី', `
+                <form id="stfForm" class="space-y-3 text-xs">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="block font-semibold mb-1">អត្តលេខ</label><input type="text" id="stfCode" required value="${st ? st.id : nextId}" class="w-full p-2.5 border rounded-xl font-mono font-bold"></div>
+                        <div><label class="block font-semibold mb-1">តួនាទី *</label><input type="text" id="stfPos" required value="${st ? st.position : 'បុគ្គលិករដ្ឋបាល'}" class="w-full p-2.5 border rounded-xl"></div>
+                    </div>
+                    <div><label class="block font-semibold mb-1">ឈ្មោះបុគ្គលិក *</label><input type="text" id="stfName" required value="${st ? st.nameKh : ''}" class="w-full p-2.5 border rounded-xl"></div>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div><label class="block font-semibold mb-1">ប្រាក់ខែគោល ($)</label><input type="number" id="stfBase" value="${st ? st.baseSalary : 300}" class="w-full p-2.5 border rounded-xl"></div>
+                        <div><label class="block font-semibold mb-1">ប្រាក់បន្ថែម ($)</label><input type="number" id="stfBonus" value="${st ? (st.bonus || 0) : 0}" class="w-full p-2.5 border rounded-xl"></div>
+                        <div><label class="block font-semibold mb-1">កាត់ប្រាក់ ($)</label><input type="number" id="stfDed" value="${st ? (st.deduction || 0) : 0}" class="w-full p-2.5 border rounded-xl"></div>
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 bg-slate-100 rounded-xl">បោះបង់</button>
+                        <button type="submit" class="px-5 py-2 bg-primary-600 text-white rounded-xl font-bold">រក្សាទុក</button>
+                    </div>
+                </form>
+            `);
+            document.getElementById('stfForm').onsubmit = (e) => {
+                e.preventDefault();
+                const data = {
+                    id: document.getElementById('stfCode').value.trim(),
+                    nameKh: document.getElementById('stfName').value.trim(),
+                    position: document.getElementById('stfPos').value.trim(),
+                    baseSalary: Number(document.getElementById('stfBase').value) || 0,
+                    bonus: Number(document.getElementById('stfBonus').value) || 0,
+                    deduction: Number(document.getElementById('stfDed').value) || 0,
+                    attendanceDays: 26
+                };
+                if (!db.staff) db.staff = [];
+                if (st) {
+                    const idx = db.staff.findIndex(x => x.id === st.id);
+                    db.staff[idx] = data;
+                } else {
+                    db.staff.push(data);
+                }
+                saveDB(); closeModal(); renderStaff(document.getElementById('mainContent'));
+                showToast('បានរក្សាទុកព័ត៌មានបុគ្គលិកជោគជ័យ!', 'success');
+            };
+        }
+
+        function deleteStaff(id) {
+            const st = (db.staff || []).find(x => x.id === id);
+            if (!st) return;
+            confirmDelete(st.nameKh, () => {
+                db.staff = db.staff.filter(x => x.id !== id);
+                saveDB(); renderStaff(document.getElementById('mainContent'));
+            });
+        }
+
+        // ============================================================================
+        // MODULE 11: COMPREHENSIVE REPORTS (ប្រព័ន្ធរបាយការណ៍សរុប)
+        // ============================================================================
+        function renderReports(container) {
+            const yearStudents = (db.students || []).filter(s => (!s.year || s.year === db.settings.currentYear) && isItemInActiveLevel(s));
+            const levelClasses = (db.classes || []).filter(c => isItemInActiveLevel(c));
+            const rate = Number(db.settings.exchangeRate) || 4100;
+            const totalIncKhr = (db.finance || []).filter(f => f.type === 'Income').reduce((s, f) => s + (f.currency === 'KHR' ? Number(f.amountKhr || 0) : Math.round(Number(f.amount || 0) * rate)), 0);
+            const totalExpKhr = (db.finance || []).filter(f => f.type === 'Expense').reduce((s, f) => s + (f.currency === 'KHR' ? Number(f.amountKhr || 0) : Math.round(Number(f.amount || 0) * rate)), 0);
+
+            container.innerHTML = `
+                <div class="space-y-6">
+                    <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-100 flex flex-wrap justify-between items-center gap-3">
+                        <div>
+                            <h3 class="font-bold text-slate-800 text-base">របាយការណ៍ស្ថិតិ និងហិរញ្ញវត្ថុប្រចាំឆ្នាំសិក្សា ${db.settings.currentYear}</h3>
+                            <p class="text-xs text-slate-500">សង្ខេបទិន្នន័យសិស្ស គ្រូបង្រៀន វត្តមាន និងហិរញ្ញវត្ថុសរុប</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="printHTML(document.getElementById('comprehensiveReportBox').outerHTML)" class="px-4 py-2 bg-slate-800 text-white rounded-xl text-xs font-bold"><i class="fas fa-print mr-1"></i> បោះពុម្ពរបាយការណ៍</button>
+                            <button onclick="exportComprehensiveReportCSV()" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold"><i class="fas fa-file-excel mr-1"></i> Export CSV</button>
+                        </div>
+                    </div>
+
+                    <div id="comprehensiveReportBox" class="bg-white p-6 rounded-2xl shadow-xs border border-slate-100 space-y-5">
+                        <div class="text-center border-b pb-3">
+                            <h2 class="text-lg font-bold text-slate-900">${db.settings.schoolNameKh}</h2>
+                            <p class="text-xs text-slate-500">របាយការណ៍បូកសរុបឆ្នាំសិក្សា ${db.settings.currentYear} • កម្រិត ${getActiveLevel() === 'PRIMARY' ? 'បឋមសិក្សា' : 'មធ្យមសិក្សា'}</p>
+                        </div>
+
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
+                            <div class="p-3 bg-blue-50 rounded-xl border border-blue-100"><strong class="text-lg text-blue-800">${yearStudents.length}</strong><span class="block text-slate-600">សិស្សសរុប</span></div>
+                            <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-100"><strong class="text-lg text-emerald-800">${(db.teachers || []).length}</strong><span class="block text-slate-600">គ្រូបង្រៀនសរុប</span></div>
+                            <div class="p-3 bg-amber-50 rounded-xl border border-amber-100"><strong class="text-lg text-amber-800">${(db.attendance || []).length}</strong><span class="block text-slate-600">កំណត់ត្រាវត្តមាន</span></div>
+                            <div class="p-3 bg-purple-50 rounded-xl border border-purple-100"><strong class="text-sm text-purple-800">${(totalIncKhr - totalExpKhr).toLocaleString()} ៛</strong><span class="block text-slate-600">សមតុល្យហិរញ្ញវត្ថុ</span></div>
+                        </div>
+
+                        <div class="overflow-x-auto border rounded-xl">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-50 border-b">
+                                    <tr>
+                                        <th class="py-2.5 px-3">ថ្នាក់រៀន</th>
+                                        <th class="py-2.5 px-3">កម្រិត</th>
+                                        <th class="py-2.5 px-3">ក្រុម</th>
+                                        <th class="py-2.5 px-3 text-center">សិស្សសរុប</th>
+                                        <th class="py-2.5 px-3 text-center">សិស្សស្រី</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y">
+                                    ${levelClasses.map(c => {
+                                        const stus = yearStudents.filter(s => s.room === c.room);
+                                        const girls = stus.filter(s => s.gender === 'ស្រី').length;
+                                        return `
+                                            <tr>
+                                                <td class="py-2.5 px-3 font-bold">ថ្នាក់ ${c.room}</td>
+                                                <td class="py-2.5 px-3">ទី ${c.grade}</td>
+                                                <td class="py-2.5 px-3">${c.group || '-'}</td>
+                                                <td class="py-2.5 px-3 text-center font-bold">${stus.length} នាក់</td>
+                                                <td class="py-2.5 px-3 text-center">${girls} នាក់</td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
 
         function printIndividualAttendanceSummary() {
-            const printable = document.getElementById('individualSummaryPrintableArea');
-            if (!printable) return;
-            const roleTitle = indSummaryTab === 'Teacher' ? 'គ្រូបង្រៀន' : 'សិស្ស';
+            const el = document.getElementById('individualSummaryPrintableArea');
+            if (!el) return;
             printHTML(`
-                <div class="text-center mb-4">
-                    <h2 class="text-xl font-bold">${db.settings.schoolNameKh}</h2>
-                    <h3 class="text-sm font-bold text-primary-700 mt-1">តារាងបូកសរុបវត្តមាន${roleTitle}ម្នាក់ៗ</h3>
+                <div class="p-4 space-y-3">
+                    <h3 class="text-center font-bold text-base">${db.settings.schoolNameKh} - តារាងបូកសរុបវត្តមាន (${indSummaryTab === 'Teacher' ? 'គ្រូបង្រៀន' : 'សិស្ស'})</h3>
+                    ${el.innerHTML}
                 </div>
-                ${printable.outerHTML}
             `);
+        }
+
+        function exportIndividualAttendanceSummaryCSV() {
+            const rows = [['អត្តលេខ', 'ឈ្មោះ', 'ប្រភេទ', 'ថ្នាក់', 'វត្តមាន', 'ច្បាប់', 'អវត្តមាន']];
+            const map = {};
+            (db.attendance || []).forEach(a => {
+                if (a.targetType !== indSummaryTab) return;
+                if (!map[a.targetId]) map[a.targetId] = { id: a.targetId, name: a.targetName, room: a.room || '-', p: 0, e: 0, ab: 0 };
+                if (a.status === 'មានវត្តមាន' || a.status === 'យឺត') map[a.targetId].p++;
+                else if (a.status === 'មានច្បាប់') map[a.targetId].e++;
+                else if (a.status === 'អវត្តមាន') map[a.targetId].ab++;
+            });
+            Object.values(map).forEach(r => rows.push([r.id, r.name, indSummaryTab, r.room, r.p, r.e, r.ab]));
+            exportToCSV(`Summary_Attendance_${indSummaryTab}.csv`, rows);
         }
 
         function deleteAttendance(id) {
